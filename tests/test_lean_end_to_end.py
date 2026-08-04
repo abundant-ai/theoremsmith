@@ -127,3 +127,58 @@ def test_a_sorry_answer_is_rejected_before_the_build(task, tmp_path):
     out = grade(staged(task, tmp_path / "sorry"))
     assert "forbidden mechanism" in out
     assert "REWARD=0" in out
+
+
+def slot_of(task: Path, name: str) -> dict:
+    return next(s for s in json.loads((task / "tests" / "slots.json").read_text())
+                if s["name"] == name)
+
+
+def test_weakening_the_statement_is_rejected(task, tmp_path):
+    attack = staged(task, tmp_path / "weaken", solve=True)
+    slot = slot_of(attack, "Demo.add_comm_demo")
+    target = attack / "environment" / slot["file"]
+    lines = target.read_text().splitlines()
+    idx = lines.index(slot["marker"])
+    lines[idx - 1] = "theorem add_comm_demo (a b : Nat) : True :="
+    target.write_text("\n".join(lines) + "\n")
+    (attack / "answers" / slot["answer_file"]).write_text("trivial\n")
+    out = grade(attack)
+    assert "was modified" in out
+    assert "REWARD=0" in out
+
+
+def test_removing_the_marker_is_rejected(task, tmp_path):
+    attack = staged(task, tmp_path / "nomarker", solve=True)
+    slot = slot_of(attack, "Demo.add_comm_demo")
+    target = attack / "environment" / slot["file"]
+    target.write_text(target.read_text().replace(slot["marker"], "Nat.add_comm a b"))
+    out = grade(attack)
+    assert "marker" in out and "missing" in out
+    assert "REWARD=0" in out
+
+
+@pytest.mark.parametrize("payload, token", [
+    ("by native_decide\n", "native_decide"),
+    ("set_option debug.skipKernelTC true in by trivial\n", "debug."),
+    ("by exact (sorryAx _)\n", "sorry"),
+    ("by exact @id _ (by admit)\n", "admit"),
+])
+def test_forbidden_mechanisms_are_rejected(task, tmp_path, payload, token):
+    attack = staged(task, tmp_path / f"ban-{token.strip('.')}", solve=True)
+    slot = slot_of(attack, "Demo.add_comm_demo")
+    (attack / "answers" / slot["answer_file"]).write_text(payload)
+    out = grade(attack)
+    assert "forbidden mechanism" in out, out[-1500:]
+    assert "REWARD=0" in out
+
+
+def test_a_banned_word_inside_a_comment_or_string_is_not_a_false_positive(task, tmp_path):
+    attack = staged(task, tmp_path / "innocent", solve=True)
+    slot = slot_of(attack, "Demo.add_comm_demo")
+    original = (attack / "solution" / slot["answer_file"]).read_text()
+    (attack / "answers" / slot["answer_file"]).write_text(
+        "-- this proof does not use sorry\n"
+        '/- neither axiom nor native_decide appear here: "sorry" -/\n' + original)
+    out = grade(attack)
+    assert "REWARD=1" in out, out[-2000:]
