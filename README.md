@@ -112,6 +112,11 @@ web/            React + MUI front end
 pytest
 ```
 
+The Lean end-to-end tests build a tiny package, cut it, and run the shipped grader for real: the
+original proofs earn reward 1, a `sorry` is refused before the build, an axiom the solver declares
+in a file of their own earns reward 0, and a weakened statement is refused. They skip themselves
+when `lake` is not on `PATH`.
+
 ## License
 
 MIT.
