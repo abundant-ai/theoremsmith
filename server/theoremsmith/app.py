@@ -94,8 +94,15 @@ async def run_events(run_id: str, after: int = 0) -> StreamingResponse:
 
     async def gen():
         try:
+            done = False
             for event in events.history(run_id, after):
                 yield events.sse(event)
+                done = done or event["kind"] == "end"
+            if done:
+                return
+            if (store.read(run_id) or {}).get("status") in {"done", "failed"}:
+                yield events.sse({"seq": 0, "t": 0, "kind": "end", "replayed": True})
+                return
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=20)
@@ -104,7 +111,7 @@ async def run_events(run_id: str, after: int = 0) -> StreamingResponse:
                     continue
                 yield events.sse(event)
                 if event["kind"] == "end":
-                    break
+                    return
         finally:
             events.unsubscribe(run_id, queue)
 
