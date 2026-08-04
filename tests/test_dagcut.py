@@ -89,6 +89,23 @@ def test_split_declaration_finds_the_delimiter():
     assert "rfl" in proof
 
 
+@pytest.mark.parametrize("source, head", [
+    ("theorem t [Std.TransCmp (α := α) cmp] : P := by simp",
+     "theorem t [Std.TransCmp (α := α) cmp] : P"),
+    ("theorem t (h : Q := by trivial) : P := h",
+     "theorem t (h : Q := by trivial) : P"),
+    ("theorem byte_count : P := rfl", "theorem byte_count : P"),
+    ("theorem t : P :=\n  fun x => x", "theorem t : P"),
+    ("theorem t /- := decoy -/ : P := rfl", "theorem t /- := decoy -/ : P"),
+    ('theorem t : name = ":=" := rfl', 'theorem t : name = ":="'),
+    ("theorem t : P := by\n  exact ⟨fun h := h, rfl⟩", "theorem t : P"),
+])
+def test_split_declaration_ignores_a_nested_or_quoted_delimiter(source, head):
+    lines = source.splitlines()
+    span = dagcut.Span("t", "A.lean", 0, len(lines) - 1)
+    assert dagcut.split_declaration(lines, span)[0] == head
+
+
 def test_apply_cut_blanks_the_target_and_its_support(tmp_path: Path):
     src = tmp_path / "A"
     src.mkdir()

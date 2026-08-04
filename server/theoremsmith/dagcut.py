@@ -153,15 +153,65 @@ def spans(g: Graph, names: Iterable[str], root: Path) -> dict[str, Span]:
 
 
 MARKER = "-- THEOREMSMITH_SLOT"
-_DELIM = re.compile(r":=|\bby\b")
+_IDENT = re.compile(r"[A-Za-z0-9_.'!?ₙₘ]")
+
+
+def find_delimiter(text: str) -> tuple[int, int] | None:
+    depth = 0
+    i, n = 0, len(text)
+    while i < n:
+        two = text[i : i + 2]
+        if two == "/-":
+            level, i = 1, i + 2
+            while i < n and level:
+                if text[i : i + 2] == "/-":
+                    level, i = level + 1, i + 2
+                elif text[i : i + 2] == "-/":
+                    level, i = level - 1, i + 2
+                else:
+                    i += 1
+            continue
+        if two == "--":
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        if text[i] == '"':
+            i += 1
+            while i < n:
+                if text[i] == "\\":
+                    i += 2
+                elif text[i] == '"':
+                    i += 1
+                    break
+                else:
+                    i += 1
+            continue
+        if text[i] == "'":
+            m = re.match(r"'(?:\\.|[^'\\\n])'", text[i:])
+            if m:
+                i += m.end()
+                continue
+        if text[i] in "([{⟨⦃":
+            depth += 1
+        elif text[i] in ")]}⟩⦄":
+            depth -= 1
+        elif depth == 0:
+            if two == ":=":
+                return i, i + 2
+            if text.startswith("by", i) and not _IDENT.match(text[i - 1] if i else " ") \
+                    and not _IDENT.match(text[i + 2] if i + 2 < n else " "):
+                return i, i + 2
+        i += 1
+    return None
 
 
 def split_declaration(lines: list[str], span: Span) -> tuple[str, str]:
     joined = "\n".join(lines[span.start : span.end + 1])
-    m = _DELIM.search(joined)
-    if not m:
+    found = find_delimiter(joined)
+    if found is None:
         raise CutError(f"no proof delimiter in {span.name}", {"file": span.file})
-    return joined[: m.start()].rstrip(), joined[m.end() :].strip()
+    start, end = found
+    return joined[:start].rstrip(), joined[end:].strip()
 
 
 def apply_cut(root: Path, part: Partition, table: dict[str, Span]) -> dict:
