@@ -94,14 +94,15 @@ async def run_events(run_id: str, after: int = 0) -> StreamingResponse:
 
     async def gen():
         try:
-            done = False
+            done, last = False, after
             for event in events.history(run_id, after):
                 yield events.sse(event)
                 done = done or event["kind"] == "end"
+                last = max(last, event["seq"])
             if done:
                 return
             if (store.read(run_id) or {}).get("status") in {"done", "failed"}:
-                yield events.sse({"seq": 0, "t": 0, "kind": "end", "replayed": True})
+                yield events.sse({"seq": last + 1, "t": 0, "kind": "end", "replayed": True})
                 return
             while True:
                 try:
