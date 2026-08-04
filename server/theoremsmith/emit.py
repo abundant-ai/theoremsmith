@@ -180,8 +180,8 @@ def _instruction(slug: str, repo: str, slots: list[dict], prose: str) -> str:
     support = [s for s in slots if not s.get("goal")]
     lines = [f"# {slug}", "", prose.strip(), "", "## What to do", ""]
     lines.append("Every proof below has been removed from the source tree and replaced by "
-                 "`sorry`. Write a Lean 4 proof for each one. The repository does not build "
-                 "until they are all filled in.")
+                 "`sorry`. The repository still compiles — Lean accepts `sorry` with a warning — "
+                 "but nothing below is proved. Write a real Lean 4 proof for each one.")
     lines.append("")
     lines.append("Targets:")
     lines.append("")

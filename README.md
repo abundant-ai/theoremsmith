@@ -3,7 +3,7 @@
 Point it at a Lean 4 repository. It builds the repository, reads the real dependency graph out of
 the compiled environment, picks a theorem, and removes that theorem's proof along with the proof of
 every helper lemma that existed only to support it. What comes out is a self-contained task: a
-repository that no longer compiles, one empty answer file per missing proof, and a grader that
+repository whose proofs are now `sorry`, one empty answer file per missing proof, and a grader that
 decides whether a submitted proof is real.
 
 You watch the whole thing happen in the browser while it runs, model output included.
