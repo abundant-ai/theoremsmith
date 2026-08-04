@@ -60,5 +60,8 @@ def json_block(raw: str) -> dict:
                 break
     start, end = body.find("{"), body.rfind("}")
     if start < 0 or end <= start:
-        raise LlmError("model did not return a JSON object")
-    return json.loads(body[start : end + 1])
+        raise LlmError("the model did not return a JSON object")
+    try:
+        return json.loads(body[start : end + 1])
+    except json.JSONDecodeError as exc:
+        raise LlmError(f"the model's JSON did not parse: {exc}") from exc

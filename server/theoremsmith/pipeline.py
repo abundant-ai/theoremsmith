@@ -182,9 +182,14 @@ def _select(cfg: Config, rid: str, repo: str, graph: dagcut.Graph) -> list[str]:
         SELECT_USER.format(repo=repo, candidates=listing, limit=3),
         lambda piece: events.emit(rid, "delta", phase="select", text=piece))
     events.emit(rid, "model", phase="select", state="end")
-    picked = [t for t in llm.json_block(raw).get("targets", []) if t in graph.nodes]
+    asked = [str(t) for t in llm.json_block(raw).get("targets", []) if t]
+    picked = [t for t in asked if t in graph.nodes]
+    for missing in [t for t in asked if t not in graph.nodes]:
+        _log(rid, f"the model named {missing}, which is not in this repository's graph", "warn")
     if not picked:
         picked = [cands[0]["name"]]
+        _log(rid, f"falling back to {picked[0]}, the candidate with the most proof dependencies",
+             "warn")
     return picked[:3]
 
 
