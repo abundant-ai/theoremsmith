@@ -32,6 +32,9 @@ Any OpenAI-compatible endpoint works. The default is Kimi:
 | `THEOREMSMITH_MODEL` | `kimi-k2-0905-preview` |
 | `THEOREMSMITH_MAX_RUNS` | `2` |
 | `THEOREMSMITH_DATA` | `/data` |
+| `THEOREMSMITH_BUILD_TIMEOUT` | `3600` seconds |
+| `THEOREMSMITH_PROBE_TIMEOUT` | `900` seconds |
+| `THEOREMSMITH_CLONE_TIMEOUT` | `600` seconds |
 
 For OpenRouter, set `THEOREMSMITH_BASE_URL=https://openrouter.ai/api/v1` and
 `THEOREMSMITH_MODEL=moonshotai/kimi-k2`.
