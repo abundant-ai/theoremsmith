@@ -7,6 +7,8 @@ from theoremsmith import emit, events, lean, llm, pipeline
 from theoremsmith.config import Config
 from theoremsmith.store import Store
 
+REAL_VERIFY = pipeline._verify
+
 SOURCE = {
     "lakefile.lean": 'import Lake\nopen Lake DSL\npackage demo\nlean_lib Demo\n',
     "Demo.lean": "import Demo.Basic\n",
@@ -70,6 +72,8 @@ def fakes(monkeypatch, tmp_path):
     monkeypatch.setattr(lean, "probe", fake_probe)
     monkeypatch.setattr(lean, "stream", fake_stream)
     monkeypatch.setattr(llm, "chat", fake_chat)
+    monkeypatch.setattr(pipeline, "_verify",
+                        lambda cfg, task, warm, sink: (True, "stubbed"))
 
 
 def test_full_run_emits_a_verified_task(cfg, fakes):
@@ -103,18 +107,28 @@ def test_full_run_emits_a_verified_task(cfg, fakes):
     assert "tiny demo package" in instruction
 
 
-def test_verification_never_leaves_the_answer_in_the_shipped_task(cfg, fakes):
+def test_verification_never_leaves_the_answer_in_the_shipped_task(cfg, fakes, monkeypatch):
     store = Store(cfg.data_dir)
     run = store.create("demo/demo", "", [], False)
     pipeline.execute(cfg, store, run["id"])
+    work = store.dir(run["id"])
+    task = work / "task"
 
-    task = store.dir(run["id"]) / "task"
+    class Ran:
+        returncode = 0
+        stdout = "applied goal\nREWARD=1\n"
+        stderr = ""
+
+    monkeypatch.setattr(pipeline.subprocess, "run", lambda *a, **k: Ran())
+    ok, _ = REAL_VERIFY(cfg, task, work / "source", lambda line: None)
+    assert ok
+
     cut = (task / "environment" / "Demo" / "Basic.lean").read_text()
-    assert "THEOREMSMITH_SLOT" in cut
+    assert cut.count("THEOREMSMITH_SLOT") == 2
     assert "exact helper" not in cut
     slots = json.loads((task / "tests" / "slots.json").read_text())
     assert (task / "answers" / slots[0]["answer_file"]).read_text().strip() == "sorry"
-    assert not (task.parent / "verify").exists()
+    assert not (work / "verify").exists()
 
 
 def test_events_carry_model_deltas_and_stages(cfg, fakes):

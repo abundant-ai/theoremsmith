@@ -151,8 +151,11 @@ print(audit.stdout[-4000:])
 if audit.returncode != 0:
     finish(0, audit.stderr[-4000:])
 
-used = {line.strip() for line in audit.stdout.splitlines() if line.strip()}
-extra = sorted(used - ALLOWED)
+reported = [line.strip() for line in audit.stdout.splitlines() if line.strip()]
+missing = [line for line in reported if line.startswith("MISSING ")]
+if missing:
+    finish(0, f"targets are not in the built environment: {missing}")
+extra = sorted(set(reported) - ALLOWED)
 if extra:
     finish(0, f"forbidden axioms reached: {extra}")
 finish(1)
@@ -227,7 +230,8 @@ def write_task(dest: Path, source: Path, *, slug: str, prose: str, slots: list[d
         APPLY.replace("__REWARD__\n", REWARD.lstrip("\n")), encoding="utf-8")
     (dest / "tests" / "grade.py").write_text(
         GRADE.replace("__REWARD__\n", REWARD.lstrip("\n")), encoding="utf-8")
-    keep = modules[:64]
+    keep = sorted({".".join(Path(s["file"]).with_suffix("").parts) for s in slots})
+    keep = [m for m in keep if m in modules] or modules[:1]
     (dest / "tests" / "axioms.lean").write_text(
         AXIOMS.format(
             imports="\n".join(f"import {m}" for m in keep),

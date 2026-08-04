@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import traceback
@@ -211,13 +212,14 @@ def _verify(cfg: Config, task_dir: Path, warm: Path, sink) -> tuple[bool, str]:
             shutil.copytree(task_dir / name, scratch / name, symlinks=True)
         shutil.copytree(scratch / "solution", scratch / "answers", symlinks=True)
         (scratch / "environment").symlink_to(warm)
-        proc = subprocess.run(["python3", str(scratch / "tests" / "apply_answers.py")],
-                              cwd=str(scratch), capture_output=True, text=True, timeout=300)
-        sink(proc.stdout.strip())
-        if proc.returncode != 0:
-            return False, (proc.stdout + proc.stderr)[-800:]
-        if lean.stream(["lake", "build"], warm, sink, cfg.build_timeout, lean.lake_env(warm)) != 0:
-            return False, "the original proofs do not rebuild the repository"
-        return True, "the original proofs rebuild the repository"
+        env = {**os.environ, "THEOREMSMITH_LOGS": str(scratch / "logs"), **lean.lake_env(warm)}
+        for step, budget in (("apply_answers.py", 300), ("grade.py", cfg.build_timeout)):
+            proc = subprocess.run(["python3", str(scratch / "tests" / step)], cwd=str(scratch),
+                                  capture_output=True, text=True, timeout=budget, env=env)
+            for line in (proc.stdout or "").splitlines():
+                sink(line)
+            if proc.returncode != 0:
+                return False, ((proc.stdout or "") + (proc.stderr or ""))[-800:]
+        return True, "the shipped grader gives the original proofs reward 1"
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
