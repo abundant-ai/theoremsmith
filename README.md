@@ -66,11 +66,14 @@ task/
   task.json
 ```
 
-Grading is binary. A submission is applied by splicing each answer file in after the theorem's
-`:=` — the statement itself comes from `tests/slots.json`, not from the submission, so the theorem
-cannot be weakened. Then the environment is rebuilt and every target's axiom closure is collected;
-anything beyond `propext`, `Classical.choice`, and `Quot.sound` fails. `sorry`, `admit`, `axiom`,
-`native_decide`, and the kernel-trust options are rejected before the build runs.
+Grading is binary. Each blanked proof leaves its statement in place followed by a marker line, and
+a submission is applied by replacing only that marker. Before it is applied, the lines above the
+marker are compared against the statement stored in `tests/slots.json`, so a submission that
+weakened the theorem is rejected rather than graded. `sorry`, `admit`, `axiom`, `native_decide` and
+the kernel-trust options are rejected at the same point, after comments, strings and character
+literals are stripped from the answer. The environment is then rebuilt, and `#print axioms` is run
+over every target; anything beyond `propext`, `Classical.choice` and `Quot.sound` fails, which is
+what catches an axiom the solver declared in a file of their own.
 
 Every run ends by running that same grader over `solution/`. If the original proofs do not earn
 reward 1 from the shipped grader, the run is marked failed rather than shipped.

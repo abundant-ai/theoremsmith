@@ -6,3 +6,5 @@ server/theoremsmith/web/
 **/__pycache__/
 *.egg-info/
 .pytest_cache/
+web/tsconfig.tsbuildinfo
+*.tsbuildinfo
