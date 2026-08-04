@@ -54,23 +54,32 @@ export default function RunView() {
         <Box sx={{ border: 1, borderColor: "divider", p: 2 }}>
           <Typography variant="caption" sx={{ display: "block", mb: 1 }}>
             {result.slots} proof{result.slots === 1 ? "" : "s"} removed
-            {result.deleted ? ` · ${result.deleted} helper declarations deleted` : ""}
-            {result.verified === true ? " · oracle rebuilds" : ""}
-            {result.verified === false ? " · oracle did not rebuild" : ""}
+            {result.support ? ` · ${result.support} of them supporting lemmas` : ""}
+            {result.verified === true ? " · the grader gives the original proofs reward 1" : ""}
+            {result.verified === false ? " · the original proofs did not earn reward 1" : ""}
           </Typography>
-          <Stack spacing={1.5}>
+          <Stack spacing={1.5} sx={{ maxHeight: 300, overflow: "auto" }}>
             {result.targets.map((t) => (
               <Box key={t}>
                 <Typography variant="body2" sx={{ fontFamily: monoFont }}>
                   {t}
                 </Typography>
                 {result.statements?.[t] && (
-                  <Typography
-                    variant="caption"
-                    sx={{ fontFamily: monoFont, whiteSpace: "pre-wrap", display: "block" }}
+                  <Box
+                    sx={{
+                      mt: 0.5,
+                      maxHeight: 96,
+                      overflow: "auto",
+                      fontFamily: monoFont,
+                      fontSize: 11.5,
+                      lineHeight: 1.5,
+                      color: "text.secondary",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
                   >
-                    {result.statements[t].slice(0, 600)}
-                  </Typography>
+                    {result.statements[t]}
+                  </Box>
                 )}
               </Box>
             ))}
@@ -89,7 +98,13 @@ export default function RunView() {
           <Typography variant="caption" sx={{ display: "block", mb: 0.75 }}>
             build output {connected ? "" : "(stream closed)"}
           </Typography>
-          <LogPane logs={logs} height={360} />
+          <LogPane
+            logs={logs}
+            height={360}
+            empty={run.status === "queued" || run.status === "running"
+              ? "waiting for output"
+              : "this run has finished; its output is not kept after a restart"}
+          />
         </Box>
       </Stack>
 

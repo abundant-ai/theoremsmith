@@ -16,8 +16,8 @@ export type Run = {
   result: {
     slug?: string;
     targets?: string[];
+    support?: number;
     slots?: number;
-    deleted?: number;
     verified?: boolean;
     verify?: string;
     statements?: Record<string, string>;

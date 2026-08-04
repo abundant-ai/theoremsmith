@@ -19,12 +19,18 @@ export default function ModelPane({
   phase: string | null;
   height?: number;
 }) {
-  const end = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const text = Object.entries(model);
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [JSON.stringify(model).length]);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    if (atBottom) el.scrollTop = el.scrollHeight;
+  }, [JSON.stringify(model).length]);
 
   return (
     <Box
+      ref={box}
       sx={{
         height,
         overflowY: "auto",
@@ -52,7 +58,6 @@ export default function ModelPane({
           </Box>
         ))}
       </Stack>
-      <div ref={end} />
     </Box>
   );
 }
