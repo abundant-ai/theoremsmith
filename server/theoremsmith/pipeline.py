@@ -174,7 +174,11 @@ def _candidates(graph: dagcut.Graph, limit: int = 60) -> list[dict]:
 def _select(cfg: Config, rid: str, repo: str, graph: dagcut.Graph) -> list[str]:
     cands = _candidates(graph)
     if not cands:
-        raise dagcut.CutError("no theorem in this repository has a proof worth cutting")
+        theorems = sum(1 for r in graph.nodes.values() if r.get("kind") == "theorem")
+        raise dagcut.CutError(
+            f"nothing here is worth cutting: {len(graph.nodes)} declarations, {theorems} of them "
+            "theorems, and none has a proof long enough or with enough in-repository dependencies. "
+            "Try a repository that proves things, or name the theorems yourself when starting a run")
     listing = "\n".join(f"{c['name']}  deps={c['deps']}  lines={c['lines']}" for c in cands)
     events.emit(rid, "model", phase="select", state="start")
     raw = llm.chat(
