@@ -177,13 +177,16 @@ def apply_cut(root: Path, part: Partition, table: dict[str, Span]) -> dict:
         lines = path.read_text(encoding="utf-8").splitlines()
         for span in sorted(group, key=lambda s: s.start, reverse=True):
             head, proof = split_declaration(lines, span)
-            marker = f"{head} := sorry {MARKER}:{span.name}"
-            lines[span.start : span.end + 1] = [marker]
+            head_lines = head.splitlines()
+            head_lines[-1] += " :="
+            marker = f"sorry {MARKER}:{span.name}"
+            lines[span.start : span.end + 1] = head_lines + [marker]
             answers[span.name] = proof
             slots.append({
                 "name": span.name,
                 "file": rel,
                 "head": head,
+                "head_lines": len(head_lines),
                 "marker": marker,
                 "answer_file": span.name.replace(".", "_") + ".lean",
                 "goal": span.name in part.targets,

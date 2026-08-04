@@ -141,3 +141,10 @@ if WEB.exists():
         if path and candidate.is_file() and candidate.is_relative_to(WEB.resolve()):
             return FileResponse(candidate)
         return FileResponse(WEB / "index.html")
+
+else:
+
+    @app.get("/{path:path}")
+    def no_web(path: str) -> dict:
+        return {"detail": "the web build is missing; run `npm install && npm run build` in web/",
+                "api": "/api/runs"}

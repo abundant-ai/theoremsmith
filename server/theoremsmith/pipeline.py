@@ -122,7 +122,8 @@ def _run(cfg: Config, store: Store, run: dict, work: Path, source: Path) -> None
     _stage(store, run, "cut", "running")
     rows = lean.probe(source, modules, goals, sink, cfg.probe_timeout)
     graph = dagcut.build_graph(rows)
-    statements = {r["name"]: r.get("statement", "") for r in rows if r.get("record") == "goal"}
+    statements = {r["name"]: (r.get("statement") or "")[:2000]
+                  for r in rows if r.get("record") == "goal"}
     part = dagcut.partition(graph, goals)
     _log(rid, f"surface {len(part.surface)} · sealed {len(part.sealed)} · support {len(part.support)}")
     table = dagcut.spans(graph, part.cut, source)

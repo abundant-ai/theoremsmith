@@ -50,6 +50,30 @@ def test_a_helper_used_from_outside_the_surface_is_sealed_not_deleted():
     assert not part.support
 
 
+def test_a_multi_line_signature_keeps_a_single_line_marker(tmp_path: Path):
+    src = tmp_path / "A"
+    src.mkdir()
+    (src / "B.lean").write_text(
+        "theorem wide (a : Nat)\n"
+        "    (h : a = a) :\n"
+        "    a = a := by\n"
+        "  exact h\n",
+        encoding="utf-8")
+    rows = [decl("wide", file=str(src / "B.lean"), start=1, end=4)]
+    graph = dagcut.build_graph(rows)
+    part = dagcut.partition(graph, ["wide"])
+    cut = dagcut.apply_cut(tmp_path, part, dagcut.spans(graph, part.cut, tmp_path))
+
+    slot = cut["slots"][0]
+    assert "\n" not in slot["marker"]
+    assert slot["head_lines"] == 3
+    lines = (src / "B.lean").read_text().splitlines()
+    idx = lines.index(slot["marker"])
+    stated = "\n".join(lines[idx - slot["head_lines"]:idx]).rstrip()
+    assert stated.endswith(":=")
+    assert stated[:-2].rstrip() == slot["head"]
+
+
 def test_missing_goal_reports_near_matches():
     g = dagcut.build_graph([decl("Ns.real_theorem")])
     with pytest.raises(dagcut.CutError) as exc:
@@ -85,6 +109,8 @@ def test_apply_cut_blanks_the_target_and_its_support(tmp_path: Path):
     text = (src / "B.lean").read_text()
     assert text.count(dagcut.MARKER) == 2
     assert "by trivial" not in text
+    assert "theorem helper : True :=" in text
+    assert all(s["head_lines"] == 1 for s in cut["slots"])
     assert [s["name"] for s in cut["slots"]] == ["goal", "helper"]
     assert cut["slots"][0]["goal"] is True
     assert cut["slots"][1]["goal"] is False

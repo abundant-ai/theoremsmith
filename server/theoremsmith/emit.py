@@ -111,7 +111,13 @@ for slot in SLOTS:
     idx = next((i for i, ln in enumerate(lines) if ln.strip() == slot["marker"].strip()), None)
     if idx is None:
         reject(f"slot marker for {slot['name']} is missing from {slot['file']}")
-    lines[idx] = slot["head"] + " := (\n" + answer.rstrip() + "\n)"
+    start = idx - slot["head_lines"]
+    if start < 0:
+        reject(f"the statement of {slot['name']} is truncated in {slot['file']}")
+    stated = "\n".join(lines[start:idx]).rstrip()
+    if not stated.endswith(":=") or stated[:-2].rstrip() != slot["head"].rstrip():
+        reject(f"the statement of {slot['name']} was modified in {slot['file']}")
+    lines[idx] = "(\n" + answer.rstrip() + "\n)"
     target.write_text("\n".join(lines) + "\n")
     print(f"applied {slot['name']}")
 '''
