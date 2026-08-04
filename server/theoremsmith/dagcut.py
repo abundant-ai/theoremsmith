@@ -153,7 +153,6 @@ def spans(g: Graph, names: Iterable[str], root: Path) -> dict[str, Span]:
 
 
 MARKER = "-- THEOREMSMITH_SLOT"
-_IDENT = re.compile(r"[A-Za-z0-9_.'!?ₙₘ]")
 
 
 def find_delimiter(text: str) -> tuple[int, int] | None:
@@ -195,12 +194,8 @@ def find_delimiter(text: str) -> tuple[int, int] | None:
             depth += 1
         elif text[i] in ")]}⟩⦄":
             depth -= 1
-        elif depth == 0:
-            if two == ":=":
-                return i, i + 2
-            if text.startswith("by", i) and not _IDENT.match(text[i - 1] if i else " ") \
-                    and not _IDENT.match(text[i + 2] if i + 2 < n else " "):
-                return i, i + 2
+        elif depth == 0 and two == ":=":
+            return i, i + 2
         i += 1
     return None
 

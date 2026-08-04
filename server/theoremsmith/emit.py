@@ -7,8 +7,8 @@ from pathlib import Path
 
 RUN_TEST = """#!/usr/bin/env bash
 set -uo pipefail
-cd /task
-python3 tests/apply_answers.py || exit 0
+cd "$(dirname "$0")/.."
+python3 tests/apply_answers.py || exit 1
 python3 tests/grade.py
 """
 

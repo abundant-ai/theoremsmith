@@ -96,6 +96,7 @@ def test_split_declaration_finds_the_delimiter():
      "theorem t (h : Q := by trivial) : P"),
     ("theorem byte_count : P := rfl", "theorem byte_count : P"),
     ("theorem t : P :=\n  fun x => x", "theorem t : P"),
+    ("theorem t : P := by\n  simp", "theorem t : P"),
     ("theorem t /- := decoy -/ : P := rfl", "theorem t /- := decoy -/ : P"),
     ('theorem t : name = ":=" := rfl', 'theorem t : name = ":="'),
     ("theorem t : P := by\n  exact ⟨fun h := h, rfl⟩", "theorem t : P"),
