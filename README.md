@@ -18,8 +18,10 @@ cp .env.example .env   # put your key in it
 docker compose up --build
 ```
 
-Open <http://localhost:8000>, press **New run**, paste a repository like
-`avigad/mathematics_in_lean`, and watch.
+Open <http://localhost:8000>, press **New run**, paste `leanprover-community/batteries`, and watch.
+
+A repository that depends on mathlib works too, but the first run fetches mathlib's build cache and
+takes much longer; raise `THEOREMSMITH_BUILD_TIMEOUT` before trying one.
 
 Any OpenAI-compatible endpoint works. The default is Kimi:
 

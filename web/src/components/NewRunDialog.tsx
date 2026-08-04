@@ -10,7 +10,7 @@ import Typography from "@mui/material/Typography";
 
 import { api, type Run } from "../api";
 
-const EXAMPLES = ["leanprover-community/mathlib4", "avigad/mathematics_in_lean"];
+const EXAMPLES = ["leanprover-community/batteries"];
 
 export default function NewRunDialog({
   open,
