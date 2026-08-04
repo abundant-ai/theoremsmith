@@ -131,6 +131,40 @@ def test_verification_never_leaves_the_answer_in_the_shipped_task(cfg, fakes, mo
     assert not (work / "verify").exists()
 
 
+def test_a_model_that_cannot_write_the_description_does_not_fail_the_run(cfg, fakes, monkeypatch):
+    def flaky(config, system, user, on_delta, **kw):
+        if "Candidate" in user:
+            body = '{"targets": ["goal"], "why": "it has a helper"}'
+            for ch in body:
+                on_delta(ch)
+            return body
+        raise llm.LlmError("stub is offline")
+
+    monkeypatch.setattr(llm, "chat", flaky)
+    store = Store(cfg.data_dir)
+    run = store.create("demo/demo", "", [], False)
+    pipeline.execute(cfg, store, run["id"])
+
+    final = store.read(run["id"])
+    assert final["status"] == "done", final["error"]
+    instruction = (store.dir(run["id"]) / "task" / "instruction.md").read_text()
+    assert "Proof targets taken from demo/demo" in instruction
+    assert any("description unavailable" in (e.get("text") or "")
+               for e in events.history(run["id"]))
+
+
+def test_a_run_with_goals_given_up_front_never_asks_the_model_to_choose(cfg, fakes, monkeypatch):
+    asked: list[str] = []
+    real = llm.chat
+    monkeypatch.setattr(llm, "chat", lambda c, s, u, d, **k: (asked.append(u), real(c, s, u, d, **k))[1])
+    store = Store(cfg.data_dir)
+    run = store.create("demo/demo", "", ["goal"], False)
+    pipeline.execute(cfg, store, run["id"])
+
+    assert store.read(run["id"])["status"] == "done"
+    assert not any("Candidate" in u for u in asked)
+
+
 def test_events_carry_model_deltas_and_stages(cfg, fakes):
     store = Store(cfg.data_dir)
     run = store.create("demo/demo", "", [], False)
