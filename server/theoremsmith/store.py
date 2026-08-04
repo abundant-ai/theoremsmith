@@ -72,14 +72,17 @@ class Store:
             return None
 
     def list(self) -> list[dict]:
+        keys = ("id", "repo", "sha", "status", "stage", "stages", "error", "created", "updated")
         out = []
-        for d in self.runs_dir.iterdir():
-            if not d.is_dir():
+        for d in sorted(self.runs_dir.iterdir()):
+            run = self.read(d.name) if d.is_dir() else None
+            if not run or "id" not in run:
                 continue
-            run = self.read(d.name)
-            if run:
-                out.append({k: run[k] for k in
-                            ("id", "repo", "sha", "status", "stage", "stages", "error", "created", "updated")})
+            summary = {k: run.get(k) for k in keys}
+            summary["stages"] = run.get("stages") or {s: "pending" for s in STAGES}
+            summary["created"] = run.get("created") or 0
+            summary["result"] = {"targets": (run.get("result") or {}).get("targets", [])}
+            out.append(summary)
         return sorted(out, key=lambda r: r["created"], reverse=True)
 
     def active(self) -> int:
