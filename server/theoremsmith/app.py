@@ -5,9 +5,9 @@ import io
 import re
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
-
 from contextlib import asynccontextmanager
+from pathlib import Path
+from threading import Lock
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -21,6 +21,7 @@ from .store import Store
 cfg = Config.load()
 store = Store(cfg.data_dir)
 pool = ThreadPoolExecutor(max_workers=cfg.max_runs)
+admission = Lock()
 
 
 @asynccontextmanager
@@ -62,11 +63,14 @@ def list_runs() -> dict:
 
 @app.post("/api/runs")
 def create_run(body: NewRun) -> dict:
-    if store.active() >= cfg.max_runs:
-        raise HTTPException(429, f"{cfg.max_runs} runs are already going; wait for one to finish")
     if not cfg.api_key:
         raise HTTPException(400, "THEOREMSMITH_API_KEY is not set on the server")
-    run = store.create(_repo(body.repo), body.sha.strip(), [g.strip() for g in body.goals if g.strip()], False)
+    repo = _repo(body.repo)
+    goals = [g.strip() for g in body.goals if g.strip()]
+    with admission:
+        if store.active() >= cfg.max_runs:
+            raise HTTPException(429, f"{cfg.max_runs} runs are already going; wait for one to finish")
+        run = store.create(repo, body.sha.strip(), goals, False)
     pool.submit(pipeline.execute, cfg, store, run["id"])
     return run
 
