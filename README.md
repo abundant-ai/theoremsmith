@@ -72,8 +72,12 @@ cannot be weakened. Then the environment is rebuilt and every target's axiom clo
 anything beyond `propext`, `Classical.choice`, and `Quot.sound` fails. `sorry`, `admit`, `axiom`,
 `native_decide`, and the kernel-trust options are rejected before the build runs.
 
-Every run ends by splicing `solution/` back in and rebuilding. If the original proofs do not
-reconstitute the repository, the run is marked failed rather than shipped.
+Every run ends by running that same grader over `solution/`. If the original proofs do not earn
+reward 1 from the shipped grader, the run is marked failed rather than shipped.
+
+The grader lives inside the task directory, so a solver that can write to `tests/` can rewrite it.
+Restore `tests/` from the task archive before grading, or mount it read-only. `task.json` carries
+the sha256 of every file under `tests/` so tampering is detectable.
 
 ## Layout
 

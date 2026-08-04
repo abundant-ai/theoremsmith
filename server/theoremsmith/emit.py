@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -249,9 +250,16 @@ def write_task(dest: Path, source: Path, *, slug: str, prose: str, slots: list[d
         "slug": slug,
         "repo": repo,
         "sha": sha,
-        "targets": [s["name"] for s in slots],
+        "prover": "lean4",
+        "targets": [s["name"] for s in slots if s.get("goal")],
+        "support": [s["name"] for s in slots if not s.get("goal")],
         "reward": "binary",
-        "network": {"solve": "none", "verify": "none"},
+        "grade": "bash tests/run_test.sh",
+        "allowed_axioms": ["propext", "Classical.choice", "Quot.sound"],
+        "grader_sha256": {
+            path.relative_to(dest).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in sorted((dest / "tests").rglob("*")) if path.is_file()
+        },
     }
     (dest / "task.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return meta
