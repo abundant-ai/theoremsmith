@@ -24,28 +24,34 @@ def chat(cfg: Config, system: str, user: str, on_delta: Callable[[str], None],
         "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
     }
     text: list[str] = []
-    with httpx.Client(timeout=httpx.Timeout(timeout, connect=30)) as client:
-        with client.stream("POST", f"{cfg.base_url}/chat/completions", json=payload,
-                           headers={"Authorization": f"Bearer {cfg.api_key}"}) as resp:
-            if resp.status_code >= 400:
-                raise LlmError(f"{resp.status_code}: {resp.read().decode()[:400]}")
-            for line in resp.iter_lines():
-                if not line.startswith("data:"):
-                    continue
-                body = line[5:].strip()
-                if body == "[DONE]":
-                    break
-                try:
-                    chunk = json.loads(body)
-                except json.JSONDecodeError:
-                    continue
-                for choice in chunk.get("choices") or []:
-                    piece = (choice.get("delta") or {}).get("content")
-                    if piece:
-                        text.append(piece)
-                        on_delta(piece)
+    try:
+        with httpx.Client(timeout=httpx.Timeout(timeout, connect=30)) as client:
+            with client.stream("POST", f"{cfg.base_url}/chat/completions", json=payload,
+                               headers={"Authorization": f"Bearer {cfg.api_key}"}) as resp:
+                if resp.status_code >= 400:
+                    raise LlmError(f"{cfg.model} returned {resp.status_code}: "
+                                   f"{resp.read().decode()[:400]}")
+                for line in resp.iter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    body = line[5:].strip()
+                    if body == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(body)
+                    except json.JSONDecodeError:
+                        continue
+                    for choice in chunk.get("choices") or []:
+                        piece = (choice.get("delta") or {}).get("content")
+                        if piece:
+                            text.append(piece)
+                            on_delta(piece)
+    except httpx.TimeoutException as exc:
+        raise LlmError(f"{cfg.model} did not answer within {timeout}s") from exc
+    except httpx.HTTPError as exc:
+        raise LlmError(f"could not reach {cfg.base_url}: {exc}") from exc
     if not text:
-        raise LlmError("model returned no content")
+        raise LlmError(f"{cfg.model} returned no content")
     return "".join(text)
 
 
