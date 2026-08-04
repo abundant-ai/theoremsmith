@@ -123,7 +123,7 @@ for slot in SLOTS:
     print(f"applied {slot['name']}")
 '''
 
-GRADE = r'''import json, os, subprocess, sys
+GRADE = r'''import json, os, re, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -146,36 +146,32 @@ print(build.stdout[-6000:])
 if build.returncode != 0:
     finish(0, build.stderr[-4000:])
 
-audit = subprocess.run(["lake", "env", "lean", "--run", str(ROOT / "tests" / "axioms.lean")],
+audit = subprocess.run(["lake", "env", "lean", str(ROOT / "tests" / "axioms.lean")],
                        cwd=ENV, capture_output=True, text=True)
 print(audit.stdout[-4000:])
 if audit.returncode != 0:
-    finish(0, audit.stderr[-4000:])
+    finish(0, (audit.stdout + audit.stderr)[-4000:])
 
-reported = [line.strip() for line in audit.stdout.splitlines() if line.strip()]
-missing = [line for line in reported if line.startswith("MISSING ")]
-if missing:
-    finish(0, f"targets are not in the built environment: {missing}")
-extra = sorted(set(reported) - ALLOWED)
+seen, used = set(), set()
+for line in audit.stdout.splitlines():
+    name = re.search(r"^'([^']+)' (?:depends on axioms: \[(.*)\]|does not depend)", line.strip())
+    if not name:
+        continue
+    seen.add(name.group(1))
+    used |= {a.strip() for a in (name.group(2) or "").split(",") if a.strip()}
+
+wanted = {s["name"] for s in SLOTS}
+if seen != wanted:
+    finish(0, f"the axiom audit did not report on {sorted(wanted - seen)}")
+extra = sorted(used - ALLOWED)
 if extra:
     finish(0, f"forbidden axioms reached: {extra}")
 finish(1)
 '''
 
-AXIOMS = """import Lean
-{imports}
-open Lean
+AXIOMS = """{imports}
 
-def targets : List Name := [{names}]
-
-def main : IO Unit := do
-  let env <- importModules #[{modules}] {{}} 0
-  for t in targets do
-    match env.find? t with
-    | none => IO.println s!"MISSING {{t}}"
-    | some _ =>
-      let (_, s) := ((CollectAxioms.collect t).run env).run {{}}
-      for a in s.axioms do IO.println a
+{prints}
 """
 
 
@@ -236,8 +232,7 @@ def write_task(dest: Path, source: Path, *, slug: str, prose: str, slots: list[d
     (dest / "tests" / "axioms.lean").write_text(
         AXIOMS.format(
             imports="\n".join(f"import {m}" for m in keep),
-            names=", ".join(f"`{s['name']}" for s in slots),
-            modules=", ".join("{ module := `%s }" % m for m in keep),
+            prints="\n".join(f"#print axioms {s['name']}" for s in slots),
         ), encoding="utf-8")
     runner = dest / "tests" / "run_test.sh"
     runner.write_text(RUN_TEST, encoding="utf-8")
