@@ -1,12 +1,15 @@
 # theoremsmith
 
 Point it at a Lean 4 repository. It builds the repository, reads the real dependency graph out of
-the compiled environment, picks a theorem, deletes that theorem's proof along with every helper
-lemma that existed only to support it, and writes out a self-contained task: a repository that no
-longer compiles, a slot for each missing proof, and a grader that decides whether a submitted proof
-is real.
+the compiled environment, picks a theorem, and removes that theorem's proof along with the proof of
+every helper lemma that existed only to support it. What comes out is a self-contained task: a
+repository that no longer compiles, one empty answer file per missing proof, and a grader that
+decides whether a submitted proof is real.
 
-You watch the whole thing happen in the browser while it runs.
+You watch the whole thing happen in the browser while it runs, model output included.
+
+A run against `leanprover-community/batteries` takes about two minutes on a warm box and produces a
+task around three theorems and the lemma they shared.
 
 ## Run it
 
