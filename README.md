@@ -31,6 +31,19 @@ Any OpenAI-compatible endpoint works. The default is Kimi:
 For OpenRouter, set `THEOREMSMITH_BASE_URL=https://openrouter.ai/api/v1` and
 `THEOREMSMITH_MODEL=moonshotai/kimi-k2`.
 
+## Host it on Daytona
+
+The repository carries a `.devcontainer/`, so Daytona builds and starts it directly:
+
+```bash
+daytona create https://github.com/<you>/theoremsmith
+```
+
+Set `THEOREMSMITH_API_KEY` in your Daytona environment before creating the sandbox; the
+devcontainer forwards it in and exposes port 8000. A sandbox needs a few GB of disk for Lean
+toolchains and build artifacts, and `THEOREMSMITH_MAX_RUNS=1` is the right setting on a small one —
+`lake build` is the expensive part of a run, not the model.
+
 ## Run it without Docker
 
 You need `git`, Python 3.11+, Node 20+, and [elan](https://github.com/leanprover/elan).

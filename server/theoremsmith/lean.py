@@ -55,11 +55,21 @@ def lake_env(root: Path) -> dict[str, str]:
     return env
 
 
+def uses_mathlib(root: Path) -> bool:
+    for name in ("lakefile.lean", "lakefile.toml", "lake-manifest.json"):
+        path = root / name
+        if path.exists() and "mathlib" in path.read_text(encoding="utf-8", errors="replace").lower():
+            return True
+    return False
+
+
 def build(root: Path, sink: Sink, timeout: int) -> None:
-    env = lake_env(root)
     if not (root / "lakefile.lean").exists() and not (root / "lakefile.toml").exists():
         raise LeanError("not a Lake package: no lakefile.lean or lakefile.toml at the repo root")
-    stream(["lake", "exe", "cache", "get"], root, sink, min(timeout, 900), env)
+    env = lake_env(root)
+    if uses_mathlib(root):
+        sink("fetching the mathlib build cache")
+        stream(["lake", "exe", "cache", "get"], root, sink, min(timeout, 1800), env)
     if stream(["lake", "build"], root, sink, timeout, env) != 0:
         raise LeanError("lake build failed")
 

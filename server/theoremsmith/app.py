@@ -7,6 +7,8 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +21,16 @@ from .store import Store
 cfg = Config.load()
 store = Store(cfg.data_dir)
 pool = ThreadPoolExecutor(max_workers=cfg.max_runs)
-app = FastAPI(title="theoremsmith")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    events.bind_loop(asyncio.get_running_loop())
+    yield
+    pool.shutdown(wait=False, cancel_futures=True)
+
+
+app = FastAPI(title="theoremsmith", lifespan=lifespan)
 
 WEB = Path(__file__).parent / "web"
 REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -37,11 +48,6 @@ def _repo(raw: str) -> str:
     if not REPO_RE.match(raw):
         raise HTTPException(400, "repo must be owner/name on github.com")
     return raw
-
-
-@app.on_event("startup")
-async def _startup() -> None:
-    events.bind_loop(asyncio.get_running_loop())
 
 
 @app.get("/api/config")
@@ -121,12 +127,17 @@ def download_task(run_id: str):
                              headers={"Content-Disposition": f'attachment; filename="{run_id}-task.zip"'})
 
 
+@app.get("/api/{rest:path}")
+def unknown_api(rest: str) -> dict:
+    raise HTTPException(404, f"no such endpoint: /api/{rest}")
+
+
 if WEB.exists():
     app.mount("/assets", StaticFiles(directory=WEB / "assets"), name="assets")
 
     @app.get("/{path:path}")
     def spa(path: str) -> FileResponse:
-        candidate = WEB / path
-        if path and candidate.is_file():
+        candidate = (WEB / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(WEB.resolve()):
             return FileResponse(candidate)
         return FileResponse(WEB / "index.html")
