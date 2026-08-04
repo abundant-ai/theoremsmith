@@ -169,22 +169,37 @@ def main : IO Unit := do
 """
 
 
-def _instruction(slug: str, repo: str, goals: list[dict], prose: str) -> str:
+def _instruction(slug: str, repo: str, slots: list[dict], prose: str) -> str:
+    goals = [s for s in slots if s.get("goal")]
+    support = [s for s in slots if not s.get("goal")]
     lines = [f"# {slug}", "", prose.strip(), "", "## What to do", ""]
-    lines.append("Each theorem below has had its proof removed from the source tree. "
-                 "Write a Lean 4 proof term for each one.")
+    lines.append("Every proof below has been removed from the source tree and replaced by "
+                 "`sorry`. Write a Lean 4 proof for each one. The repository does not build "
+                 "until they are all filled in.")
     lines.append("")
-    for g in goals:
-        lines.append(f"- `{g['name']}` — write your proof into `answers/{g['answer_file']}`")
+    lines.append("Targets:")
+    lines.append("")
+    for s in goals:
+        lines.append(f"- `{s['name']}` in `environment/{s['file']}` "
+                     f"-> `answers/{s['answer_file']}`")
+    if support:
+        lines.append("")
+        lines.append("Supporting lemmas these proofs used, also removed:")
+        lines.append("")
+        for s in support:
+            lines.append(f"- `{s['name']}` in `environment/{s['file']}` "
+                         f"-> `answers/{s['answer_file']}`")
     lines.append("")
     lines.append("## Rules")
     lines.append("")
     lines.append("- An answer file holds ONE Lean expression. It is spliced in after `:=`, "
-                 "so `by\\n  simp` and a bare term both work.")
-    lines.append("- `sorry`, `admit`, `axiom`, `native_decide`, and kernel-trust options are rejected.")
-    lines.append("- The theorem statements are fixed; only the proofs are yours.")
-    lines.append("- Helper lemmas that existed only to prove these theorems have been deleted. "
-                 "Prove what you need inline or in a new file.")
+                 "so a tactic block starting with `by` and a bare proof term both work.")
+    lines.append("- `sorry`, `admit`, `axiom`, `native_decide`, and the kernel-trust options "
+                 "are rejected before the build runs.")
+    lines.append("- The statements are fixed and are taken from the task, not from your answer, "
+                 "so they cannot be weakened.")
+    lines.append("- Every target's axiom closure must stay inside `propext`, "
+                 "`Classical.choice`, and `Quot.sound`.")
     lines.append("- Build with `lake build` in `environment/`. There is no network.")
     lines.append("")
     lines.append(f"Source: `{repo}`.")

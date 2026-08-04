@@ -90,12 +90,13 @@ def test_full_run_emits_a_verified_task(cfg, fakes):
         assert (task / name).exists(), name
 
     slots = json.loads((task / "tests" / "slots.json").read_text())
-    assert [s["name"] for s in slots] == ["goal"]
+    assert [s["name"] for s in slots] == ["goal", "helper"]
     assert (task / "solution" / slots[0]["answer_file"]).read_text().strip() == "by\n  exact helper"
 
     cut = (task / "environment" / "Demo" / "Basic.lean").read_text()
-    assert "THEOREMSMITH_SLOT" in cut
-    assert "theorem helper" not in cut
+    assert cut.count("THEOREMSMITH_SLOT") == 2
+    assert "theorem helper" in cut
+    assert "trivial" not in cut
 
     instruction = (task / "instruction.md").read_text()
     assert "goal" in instruction

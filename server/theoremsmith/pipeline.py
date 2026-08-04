@@ -124,12 +124,12 @@ def _run(cfg: Config, store: Store, run: dict, work: Path, source: Path) -> None
     graph = dagcut.build_graph(rows)
     statements = {r["name"]: r.get("statement", "") for r in rows if r.get("record") == "goal"}
     part = dagcut.partition(graph, goals)
-    _log(rid, f"surface {len(part.surface)} · sealed {len(part.sealed)} · deleted {len(part.delete)}")
-    table = dagcut.spans(graph, part.targets | part.delete, source)
+    _log(rid, f"surface {len(part.surface)} · sealed {len(part.sealed)} · support {len(part.support)}")
+    table = dagcut.spans(graph, part.cut, source)
     cut = dagcut.apply_cut(source, part, table)
     if not cut["slots"]:
         raise dagcut.CutError("no answer slots were produced")
-    _log(rid, f"blanked {len(cut['slots'])} proofs, deleted {cut['removed']} helper declarations")
+    _log(rid, f"blanked {len(cut['slots'])} proofs across {len(cut['files'])} files")
     _stage(store, run, "cut", "done")
 
     _stage(store, run, "emit", "running")
@@ -139,8 +139,8 @@ def _run(cfg: Config, store: Store, run: dict, work: Path, source: Path) -> None
     meta = emit.write_task(task_dir, source, slug=slug, prose=prose, slots=cut["slots"],
                            answers=cut["answers"], modules=modules,
                            repo=run["repo"], sha=run["sha"])
-    run["result"] = {**meta, "slots": len(cut["slots"]), "deleted": cut["removed"],
-                     "statements": statements}
+    run["result"] = {**meta, "slots": len(cut["slots"]),
+                     "support": len(cut["slots"]) - len(goals), "statements": statements}
     store.write(run)
     _stage(store, run, "emit", "done")
 

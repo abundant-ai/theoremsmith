@@ -79,15 +79,19 @@ class Partition:
     goals: list[str]
     surface: set[str]
     sealed: set[str]
-    delete: set[str]
+    support: set[str]
     targets: set[str]
+
+    @property
+    def cut(self) -> set[str]:
+        return self.targets | self.support
 
     def summary(self) -> dict:
         return {
             "goals": sorted(self.goals),
             "surface": len(self.surface),
             "sealed": len(self.sealed),
-            "delete": len(self.delete),
+            "support": len(self.support),
         }
 
 
@@ -118,8 +122,12 @@ def partition(g: Graph, goals: list[str]) -> Partition:
             break
         sealed |= closure(outside, both) & surface
     sealed -= targets
-    delete = surface - sealed - targets
-    return Partition(list(goals), surface, sealed, delete, targets)
+    cut = surface - sealed - targets
+    for name in sorted(cut):
+        if g.nodes[name].get("kind") != "theorem":
+            cut.discard(name)
+            sealed.add(name)
+    return Partition(list(goals), surface, sealed, cut, targets)
 
 
 @dataclass(frozen=True)
@@ -158,33 +166,28 @@ def split_declaration(lines: list[str], span: Span) -> tuple[str, str]:
 
 def apply_cut(root: Path, part: Partition, table: dict[str, Span]) -> dict:
     byfile: dict[str, list[Span]] = {}
-    for n in part.targets | part.delete:
-        s = table.get(n)
-        if s:
-            byfile.setdefault(s.file, []).append(s)
+    for name in part.cut:
+        span = table.get(name)
+        if span:
+            byfile.setdefault(span.file, []).append(span)
     slots: list[dict] = []
     answers: dict[str, str] = {}
-    removed = 0
     for rel, group in byfile.items():
         path = root / rel
         lines = path.read_text(encoding="utf-8").splitlines()
-        for s in sorted(group, key=lambda x: x.start, reverse=True):
-            if s.name in part.targets:
-                head, proof = split_declaration(lines, s)
-                marker = f"{head} := sorry {MARKER}:{s.name}"
-                lines[s.start : s.end + 1] = [marker]
-                answers[s.name] = proof
-                slots.append({
-                    "name": s.name,
-                    "file": rel,
-                    "head": head,
-                    "marker": marker,
-                    "answer_file": s.name.replace(".", "_") + ".lean",
-                })
-            else:
-                lines[s.start : s.end + 1] = []
-                removed += 1
+        for span in sorted(group, key=lambda s: s.start, reverse=True):
+            head, proof = split_declaration(lines, span)
+            marker = f"{head} := sorry {MARKER}:{span.name}"
+            lines[span.start : span.end + 1] = [marker]
+            answers[span.name] = proof
+            slots.append({
+                "name": span.name,
+                "file": rel,
+                "head": head,
+                "marker": marker,
+                "answer_file": span.name.replace(".", "_") + ".lean",
+                "goal": span.name in part.targets,
+            })
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    slots.sort(key=lambda s: s["name"])
-    return {"slots": slots, "answers": answers, "removed": removed,
-            "files": sorted(byfile)}
+    slots.sort(key=lambda s: (not s["goal"], s["name"]))
+    return {"slots": slots, "answers": answers, "files": sorted(byfile)}

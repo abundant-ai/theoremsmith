@@ -36,7 +36,7 @@ def test_partition_cuts_helpers_used_only_by_the_goal():
     part = dagcut.partition(dagcut.build_graph(rows), ["Goal"])
     assert part.targets == {"Goal"}
     assert "Stmt" in part.sealed
-    assert {"Helper", "Deep"} <= part.delete
+    assert {"Helper", "Deep"} <= part.support
 
 
 def test_a_helper_used_from_outside_the_surface_is_sealed_not_deleted():
@@ -47,7 +47,7 @@ def test_a_helper_used_from_outside_the_surface_is_sealed_not_deleted():
     ]
     part = dagcut.partition(dagcut.build_graph(rows), ["Goal"])
     assert "Helper" in part.sealed
-    assert not part.delete
+    assert not part.support
 
 
 def test_missing_goal_reports_near_matches():
@@ -65,7 +65,7 @@ def test_split_declaration_finds_the_delimiter():
     assert "rfl" in proof
 
 
-def test_apply_cut_blanks_targets_and_removes_helpers(tmp_path: Path):
+def test_apply_cut_blanks_the_target_and_its_support(tmp_path: Path):
     src = tmp_path / "A"
     src.mkdir()
     (src / "B.lean").write_text(
@@ -79,12 +79,14 @@ def test_apply_cut_blanks_targets_and_removes_helpers(tmp_path: Path):
     ]
     graph = dagcut.build_graph(rows)
     part = dagcut.partition(graph, ["goal"])
-    table = dagcut.spans(graph, part.targets | part.delete, tmp_path)
+    table = dagcut.spans(graph, part.cut, tmp_path)
     cut = dagcut.apply_cut(tmp_path, part, table)
 
     text = (src / "B.lean").read_text()
-    assert "helper" not in text.split("--")[0]
-    assert dagcut.MARKER in text
-    assert cut["slots"][0]["name"] == "goal"
+    assert text.count(dagcut.MARKER) == 2
+    assert "by trivial" not in text
+    assert [s["name"] for s in cut["slots"]] == ["goal", "helper"]
+    assert cut["slots"][0]["goal"] is True
+    assert cut["slots"][1]["goal"] is False
     assert "exact helper" in cut["answers"]["goal"]
-    assert cut["removed"] == 1
+    assert "trivial" in cut["answers"]["helper"]

@@ -64,40 +64,54 @@ def build(root: Path, sink: Sink, timeout: int) -> None:
         raise LeanError("lake build failed")
 
 
-_LIB_RE = re.compile(r"^\s*lean_lib\s+«?([A-Za-z0-9_.]+)»?", re.M)
+_LIB_LEAN = re.compile(r"^\s*lean_lib\s+«?([A-Za-z0-9_.']+)»?", re.M)
+_LIB_TOML = re.compile(r"\[\[lean_lib\]\](.*?)(?=\n\[|\Z)", re.S)
+_NAME = re.compile(r'^\s*name\s*=\s*"?([A-Za-z0-9_.]+)"?\s*$', re.M)
+
+
+def library_names(root: Path) -> list[str]:
+    names: list[str] = []
+    lean_file = root / "lakefile.lean"
+    if lean_file.exists():
+        names += _LIB_LEAN.findall(lean_file.read_text(encoding="utf-8", errors="replace"))
+    toml_file = root / "lakefile.toml"
+    if toml_file.exists():
+        text = toml_file.read_text(encoding="utf-8", errors="replace")
+        for block in _LIB_TOML.findall(text):
+            names += _NAME.findall(block)
+        names += _NAME.findall(text.split("[[")[0])
+    for child in sorted(root.iterdir()):
+        if child.is_dir() and child.name[0].isupper() and any(child.rglob("*.lean")):
+            names.append(child.name)
+    out: list[str] = []
+    for name in names:
+        if name in out:
+            continue
+        if (root / name).is_dir() or (root / f"{name}.lean").exists():
+            out.append(name)
+    return out
+
+
+def modules_of(root: Path, library: str) -> list[str]:
+    mods: list[str] = []
+    if (root / f"{library}.lean").exists():
+        mods.append(library)
+    base = root / library
+    if base.is_dir():
+        for f in sorted(base.rglob("*.lean")):
+            mods.append(".".join(f.relative_to(root).with_suffix("").parts))
+    return mods
 
 
 def package_modules(root: Path) -> tuple[str, list[str]]:
-    text = ""
-    for name in ("lakefile.lean", "lakefile.toml"):
-        p = root / name
-        if p.exists():
-            text += p.read_text(encoding="utf-8", errors="replace")
-    libs = _LIB_RE.findall(text)
-    libs += re.findall(r'name\s*=\s*"([A-Za-z0-9_.]+)"', text)
-    seen: list[str] = []
-    for lib in libs:
-        if lib not in seen and (root / lib).is_dir() or (root / f"{lib}.lean").exists():
-            if lib not in seen:
-                seen.append(lib)
-    if not seen:
-        for child in sorted(root.iterdir()):
-            if child.is_dir() and any(child.rglob("*.lean")) and child.name[0].isupper():
-                seen.append(child.name)
-    if not seen:
-        raise LeanError("could not find a Lean library root in this repo")
-    package = seen[0]
-    mods: list[str] = []
-    base = root / package
-    if (root / f"{package}.lean").exists():
-        mods.append(package)
-    if base.is_dir():
-        for f in sorted(base.rglob("*.lean")):
-            rel = f.relative_to(root).with_suffix("")
-            mods.append(".".join(rel.parts))
+    libs = library_names(root)
+    if not libs:
+        raise LeanError("could not find a Lean library in this repository")
+    best = max(libs, key=lambda lib: len(modules_of(root, lib)))
+    mods = modules_of(root, best)
     if not mods:
-        raise LeanError(f"library {package!r} has no .lean modules")
-    return package, mods
+        raise LeanError(f"library {best!r} has no .lean modules")
+    return best, mods
 
 
 def probe(root: Path, modules: list[str], goals: list[str], sink: Sink, timeout: int) -> list[dict]:
