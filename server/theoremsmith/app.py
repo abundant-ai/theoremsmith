@@ -27,6 +27,7 @@ admission = Lock()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     events.bind_loop(asyncio.get_running_loop())
+    store.fail_orphans()
     yield
     pool.shutdown(wait=False, cancel_futures=True)
 
@@ -126,6 +127,11 @@ async def run_events(run_id: str, after: int = 0) -> StreamingResponse:
 
 @app.get("/api/runs/{run_id}/task")
 def download_task(run_id: str):
+    run = store.read(run_id)
+    if not run:
+        raise HTTPException(404, "no such run")
+    if run["status"] != "done":
+        raise HTTPException(409, "this run did not finish, so its task is not offered")
     task = store.dir(run_id) / "task"
     if not task.exists():
         raise HTTPException(404, "this run has no task yet")

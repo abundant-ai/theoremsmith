@@ -10,11 +10,23 @@ from threading import Lock
 
 STAGES = ["clone", "build", "probe", "select", "cut", "emit", "verify"]
 
+ID_RE = re.compile(r"^[0-9a-f]{12}$")
+
 _lock = Lock()
+
+
+class BadRunId(ValueError):
+    pass
 
 
 def new_id() -> str:
     return uuid.uuid4().hex[:12]
+
+
+def check_id(run_id: str) -> str:
+    if not ID_RE.match(run_id or ""):
+        raise BadRunId(run_id)
+    return run_id
 
 
 def slugify(text: str) -> str:
@@ -29,7 +41,7 @@ class Store:
         self.runs_dir.mkdir(parents=True, exist_ok=True)
 
     def dir(self, run_id: str) -> Path:
-        return self.runs_dir / run_id
+        return self.runs_dir / check_id(run_id)
 
     def path(self, run_id: str) -> Path:
         return self.dir(run_id) / "run.json"
@@ -63,7 +75,10 @@ class Store:
             os.replace(tmp, p)
 
     def read(self, run_id: str) -> dict | None:
-        p = self.path(run_id)
+        try:
+            p = self.path(run_id)
+        except BadRunId:
+            return None
         if not p.exists():
             return None
         try:
@@ -90,8 +105,29 @@ class Store:
 
     def delete(self, run_id: str) -> bool:
         import shutil
-        d = self.dir(run_id)
+        try:
+            d = self.dir(run_id)
+        except BadRunId:
+            return False
         if not d.exists():
             return False
         shutil.rmtree(d, ignore_errors=True)
         return True
+
+
+    def fail_orphans(self) -> int:
+        stranded = 0
+        for summary in self.list():
+            if summary["status"] not in {"queued", "running"}:
+                continue
+            run = self.read(summary["id"])
+            if not run:
+                continue
+            run["status"] = "failed"
+            run["error"] = "the server restarted while this run was in progress"
+            for name, state in (run.get("stages") or {}).items():
+                if state == "running":
+                    run["stages"][name] = "failed"
+            self.write(run)
+            stranded += 1
+        return stranded

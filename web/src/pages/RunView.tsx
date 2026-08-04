@@ -35,7 +35,7 @@ export default function RunView() {
           </Typography>
           <StatusChip run={run} />
         </Stack>
-        {result?.slots ? (
+        {run.status === "done" ? (
           <Button variant="outlined" href={api.taskUrl(run.id)}>
             Download task
           </Button>

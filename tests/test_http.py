@@ -62,6 +62,53 @@ def test_an_unknown_run_is_a_404_everywhere(client):
     assert c.delete("/api/runs/nope").status_code == 404
 
 
+@pytest.mark.parametrize("run_id", [".", "..", "%2e", "a" * 12 + "/..", "ABCDEF123456", "../../etc"])
+def test_a_run_id_that_is_not_a_run_id_can_never_reach_the_disk(client, run_id):
+    c, module = client
+    created = c.post("/api/runs", json={"repo": "owner/name"}).json()
+    assert c.delete(f"/api/runs/{run_id}").status_code != 200
+    assert module.store.read(created["id"]) is not None
+    assert module.store.dir(created["id"]).exists()
+    assert module.store.runs_dir.exists()
+
+
+def test_the_store_refuses_a_run_id_that_is_not_twelve_hex_digits(tmp_path):
+    from theoremsmith.store import BadRunId, Store
+    store = Store(tmp_path)
+    real = store.create("owner/name", "", [], False)
+    for bad in (".", "..", "", "../x", "A" * 12, "0" * 11, "0" * 13):
+        assert store.read(bad) is None
+        assert store.delete(bad) is False
+        with pytest.raises(BadRunId):
+            store.dir(bad)
+    assert store.read(real["id"]) is not None
+
+
+def test_the_task_of_a_run_that_did_not_finish_is_not_offered(client):
+    c, module = client
+    created = c.post("/api/runs", json={"repo": "owner/name"}).json()
+    run = module.store.read(created["id"])
+    run["status"] = "failed"
+    module.store.write(run)
+    assert c.get(f"/api/runs/{created['id']}/task").status_code == 409
+
+
+def test_a_run_stranded_by_a_restart_is_marked_failed(client):
+    c, module = client
+    created = c.post("/api/runs", json={"repo": "owner/name"}).json()
+    run = module.store.read(created["id"])
+    run["status"] = "running"
+    run["stages"]["build"] = "running"
+    module.store.write(run)
+
+    assert module.store.fail_orphans() == 1
+    recovered = module.store.read(created["id"])
+    assert recovered["status"] == "failed"
+    assert recovered["stages"]["build"] == "failed"
+    assert "restarted" in recovered["error"]
+    assert module.store.active() == 0
+
+
 def test_an_unknown_api_path_does_not_fall_through_to_the_page(client):
     c, _ = client
     response = c.get("/api/definitely-not-a-route")

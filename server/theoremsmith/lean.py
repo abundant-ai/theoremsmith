@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
 import subprocess
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Callable
 
 ASSETS = Path(__file__).parent / "assets"
 
 Sink = Callable[[str], None]
+_EOF = object()
 
 
 class LeanError(RuntimeError):
@@ -22,17 +26,41 @@ def stream(argv: list[str], cwd: Path, sink: Sink, timeout: int, env: dict | Non
         argv, cwd=str(cwd), env=env or os.environ.copy(),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
     )
+    assert proc.stdout is not None
+    lines: queue.Queue = queue.Queue(maxsize=10000)
+
+    def pump() -> None:
+        try:
+            for line in proc.stdout:
+                try:
+                    lines.put(line.rstrip("\n"), timeout=1)
+                except queue.Full:
+                    pass
+        finally:
+            lines.put(_EOF)
+
+    reader = threading.Thread(target=pump, daemon=True)
+    reader.start()
+    deadline = time.monotonic() + timeout
     try:
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            sink(line.rstrip("\n"))
-        return proc.wait(timeout=timeout)
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise LeanError(f"{argv[0]} exceeded {timeout}s")
+            try:
+                line = lines.get(timeout=min(left, 5))
+            except queue.Empty:
+                continue
+            if line is _EOF:
+                break
+            sink(line)
+        return proc.wait(timeout=max(1, deadline - time.monotonic()))
     except subprocess.TimeoutExpired:
-        proc.kill()
         raise LeanError(f"{argv[0]} exceeded {timeout}s")
     finally:
         if proc.poll() is None:
             proc.kill()
+            proc.wait(timeout=30)
 
 
 def clone(url: str, sha: str, dest: Path, sink: Sink, timeout: int) -> str:
