@@ -1,0 +1,190 @@
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, Iterable
+
+_GENERATED = re.compile(
+    r"(^|\.)(_|match_\d|proof_\d|eq_\d|rec|recOn|casesOn|brecOn|below|ibelow|binductionOn|"
+    r"noConfusion|noConfusionType|ofNat|toCtorIdx|sizeOf|instDecidableEq|induct|"
+    r"eq_def|def_eq|unsafe_rec|elim|inj|injEq|ctorIdx)($|\.)"
+)
+
+
+class CutError(RuntimeError):
+    def __init__(self, reason: str, detail: dict | None = None):
+        super().__init__(reason)
+        self.reason = reason
+        self.detail = detail or {}
+
+
+def authored(row: dict) -> bool:
+    if row.get("internal"):
+        return False
+    name = row.get("user") or row.get("name") or ""
+    if not name or _GENERATED.search(name):
+        return False
+    if row.get("kind") in {"ctor", "rec", "quot"}:
+        return False
+    return bool(row.get("file")) and row.get("startLine") is not None
+
+
+@dataclass
+class Graph:
+    nodes: dict[str, dict] = field(default_factory=dict)
+    stmt: dict[str, set[str]] = field(default_factory=dict)
+    body: dict[str, set[str]] = field(default_factory=dict)
+    incoming: dict[str, set[str]] = field(default_factory=dict)
+    byraw: dict[str, dict] = field(default_factory=dict)
+
+
+def build_graph(rows: Iterable[dict]) -> Graph:
+    g = Graph()
+    decls = [r for r in rows if r.get("record") == "decl"]
+    for r in decls:
+        g.byraw[r.get("name") or ""] = r
+    for r in decls:
+        if not authored(r):
+            continue
+        g.nodes[r["user"]] = r
+    def canon(raw: str) -> str | None:
+        row = g.byraw.get(raw)
+        user = (row.get("user") if row else None) or raw
+        return user if user in g.nodes else None
+    for name, r in g.nodes.items():
+        s = {c for d in (r.get("typeDeps") or []) if (c := canon(d)) and c != name}
+        b = {c for d in (r.get("valueDeps") or []) if (c := canon(d)) and c != name}
+        g.stmt[name] = s
+        g.body[name] = b - s
+        for d in s | b:
+            g.incoming.setdefault(d, set()).add(name)
+    return g
+
+
+def closure(start: Iterable[str], edges: Callable[[str], Iterable[str]]) -> set[str]:
+    seen: set[str] = set()
+    stack = list(start)
+    while stack:
+        n = stack.pop()
+        if n in seen:
+            continue
+        seen.add(n)
+        stack.extend(edges(n))
+    return seen
+
+
+@dataclass
+class Partition:
+    goals: list[str]
+    surface: set[str]
+    sealed: set[str]
+    delete: set[str]
+    targets: set[str]
+
+    def summary(self) -> dict:
+        return {
+            "goals": sorted(self.goals),
+            "surface": len(self.surface),
+            "sealed": len(self.sealed),
+            "delete": len(self.delete),
+        }
+
+
+def partition(g: Graph, goals: list[str]) -> Partition:
+    missing = [x for x in goals if x not in g.nodes]
+    if missing:
+        near = {
+            m: sorted(n for n in g.nodes if m.rsplit(".", 1)[-1].lower() in n.lower())[:5]
+            for m in missing
+        }
+        raise CutError("goals absent from the authored graph", {"missing": missing, "nearest": near})
+    if not goals:
+        raise CutError("no goals selected")
+
+    def both(x: str) -> set[str]:
+        return g.stmt.get(x, set()) | g.body.get(x, set())
+
+    surface = closure(goals, both)
+    seed: set[str] = set()
+    for x in goals:
+        seed |= g.stmt.get(x, set())
+    targets = set(goals)
+    sealed = closure(seed, both) & surface
+    while True:
+        cand = surface - sealed - targets
+        outside = {d for d in cand if g.incoming.get(d, set()) - surface}
+        if not outside:
+            break
+        sealed |= closure(outside, both) & surface
+    sealed -= targets
+    delete = surface - sealed - targets
+    return Partition(list(goals), surface, sealed, delete, targets)
+
+
+@dataclass(frozen=True)
+class Span:
+    name: str
+    file: str
+    start: int
+    end: int
+
+
+def spans(g: Graph, names: Iterable[str], root: Path) -> dict[str, Span]:
+    out: dict[str, Span] = {}
+    for n in names:
+        r = g.nodes.get(n)
+        if not r or not r.get("file") or r.get("startLine") is None:
+            continue
+        try:
+            rel = Path(r["file"]).resolve().relative_to(root.resolve()).as_posix()
+        except ValueError:
+            continue
+        out[n] = Span(n, rel, int(r["startLine"]) - 1, int(r.get("endLine") or r["startLine"]) - 1)
+    return out
+
+
+MARKER = "-- THEOREMSMITH_SLOT"
+_DELIM = re.compile(r":=|\bby\b")
+
+
+def split_declaration(lines: list[str], span: Span) -> tuple[str, str]:
+    joined = "\n".join(lines[span.start : span.end + 1])
+    m = _DELIM.search(joined)
+    if not m:
+        raise CutError(f"no proof delimiter in {span.name}", {"file": span.file})
+    return joined[: m.start()].rstrip(), joined[m.end() :].strip()
+
+
+def apply_cut(root: Path, part: Partition, table: dict[str, Span]) -> dict:
+    byfile: dict[str, list[Span]] = {}
+    for n in part.targets | part.delete:
+        s = table.get(n)
+        if s:
+            byfile.setdefault(s.file, []).append(s)
+    slots: list[dict] = []
+    answers: dict[str, str] = {}
+    removed = 0
+    for rel, group in byfile.items():
+        path = root / rel
+        lines = path.read_text(encoding="utf-8").splitlines()
+        for s in sorted(group, key=lambda x: x.start, reverse=True):
+            if s.name in part.targets:
+                head, proof = split_declaration(lines, s)
+                marker = f"{head} := sorry {MARKER}:{s.name}"
+                lines[s.start : s.end + 1] = [marker]
+                answers[s.name] = proof
+                slots.append({
+                    "name": s.name,
+                    "file": rel,
+                    "head": head,
+                    "marker": marker,
+                    "answer_file": s.name.replace(".", "_") + ".lean",
+                })
+            else:
+                lines[s.start : s.end + 1] = []
+                removed += 1
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    slots.sort(key=lambda s: s["name"])
+    return {"slots": slots, "answers": answers, "removed": removed,
+            "files": sorted(byfile)}

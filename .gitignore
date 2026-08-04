@@ -1,0 +1,8 @@
+data/
+.env
+.venv/
+node_modules/
+server/theoremsmith/web/
+**/__pycache__/
+*.egg-info/
+.pytest_cache/

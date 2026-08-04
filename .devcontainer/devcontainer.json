@@ -1,0 +1,11 @@
+{
+  "name": "theoremsmith",
+  "build": { "dockerfile": "../Dockerfile" },
+  "forwardPorts": [8000],
+  "postStartCommand": "theoremsmith",
+  "remoteEnv": {
+    "THEOREMSMITH_API_KEY": "${localEnv:THEOREMSMITH_API_KEY}",
+    "THEOREMSMITH_BASE_URL": "${localEnv:THEOREMSMITH_BASE_URL}",
+    "THEOREMSMITH_MODEL": "${localEnv:THEOREMSMITH_MODEL}"
+  }
+}

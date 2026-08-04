@@ -1,0 +1,8 @@
+.git
+data
+web/node_modules
+web/dist
+server/theoremsmith/web
+**/__pycache__
+*.egg-info
+.venv

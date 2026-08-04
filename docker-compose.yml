@@ -1,0 +1,15 @@
+services:
+  theoremsmith:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      THEOREMSMITH_API_KEY: ${THEOREMSMITH_API_KEY}
+      THEOREMSMITH_BASE_URL: ${THEOREMSMITH_BASE_URL:-https://api.moonshot.ai/v1}
+      THEOREMSMITH_MODEL: ${THEOREMSMITH_MODEL:-kimi-k2-0905-preview}
+      THEOREMSMITH_MAX_RUNS: ${THEOREMSMITH_MAX_RUNS:-2}
+    volumes:
+      - theoremsmith-data:/data
+
+volumes:
+  theoremsmith-data:
