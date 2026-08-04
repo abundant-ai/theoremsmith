@@ -145,7 +145,7 @@ def _run(cfg: Config, store: Store, run: dict, work: Path, source: Path) -> None
     _stage(store, run, "emit", "done")
 
     _stage(store, run, "verify", "running")
-    ok, detail = _verify(cfg, rid, task_dir, sink)
+    ok, detail = _verify(cfg, task_dir, source, sink)
     run = store.read(rid) or run
     run["result"] = {**(run["result"] or {}), "verified": ok, "verify": detail}
     store.write(run)
@@ -200,21 +200,22 @@ def _prose(cfg: Config, rid: str, repo: str, goals: list[str], statements: dict[
     return text.strip()
 
 
-def _verify(cfg: Config, rid: str, task_dir: Path, sink) -> tuple[bool, str]:
+def _verify(cfg: Config, task_dir: Path, warm: Path, sink) -> tuple[bool, str]:
     scratch = task_dir.parent / "verify"
     if scratch.exists():
         shutil.rmtree(scratch)
-    shutil.copytree(task_dir, scratch, symlinks=True)
+    scratch.mkdir()
     try:
-        for answer in (scratch / "solution").iterdir():
-            shutil.copy(answer, scratch / "answers" / answer.name)
+        for name in ("tests", "solution"):
+            shutil.copytree(task_dir / name, scratch / name, symlinks=True)
+        shutil.copytree(scratch / "solution", scratch / "answers", symlinks=True)
+        (scratch / "environment").symlink_to(warm)
         proc = subprocess.run(["python3", str(scratch / "tests" / "apply_answers.py")],
                               cwd=str(scratch), capture_output=True, text=True, timeout=300)
         sink(proc.stdout.strip())
         if proc.returncode != 0:
             return False, (proc.stdout + proc.stderr)[-800:]
-        env = scratch / "environment"
-        if lean.stream(["lake", "build"], env, sink, cfg.build_timeout, lean.lake_env(env)) != 0:
+        if lean.stream(["lake", "build"], warm, sink, cfg.build_timeout, lean.lake_env(warm)) != 0:
             return False, "the original proofs do not rebuild the repository"
         return True, "the original proofs rebuild the repository"
     finally:

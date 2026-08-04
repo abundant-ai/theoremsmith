@@ -37,7 +37,7 @@ def _put(q: asyncio.Queue, event: dict) -> None:
 
 
 def history(run_id: str, after: int = 0) -> list[dict]:
-    return [e for e in _log[run_id] if e["seq"] > after]
+    return [e for e in list(_log[run_id]) if e["seq"] > after]
 
 
 def subscribe(run_id: str) -> asyncio.Queue:
