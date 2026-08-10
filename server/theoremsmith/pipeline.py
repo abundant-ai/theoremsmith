@@ -108,17 +108,22 @@ def _run(cfg: Config, store: Store, run: dict, work: Path, source: Path) -> None
     _stage(store, run, "probe", "running")
     package, modules = lean.package_modules(source)
     _log(rid, f"library {package}: {len(modules)} modules")
-    rows = lean.probe(source, modules, [], sink, cfg.probe_timeout)
-    graph = dagcut.build_graph(rows)
-    _log(rid, f"{len(graph.nodes)} authored declarations in the dependency graph")
-    _stage(store, run, "probe", "done")
-
-    _stage(store, run, "select", "running")
-    goals = run["goals"] or _select(cfg, rid, run["repo"], graph)
-    run["goals"] = goals
-    store.write(run)
-    _log(rid, f"targets: {', '.join(goals)}")
-    _stage(store, run, "select", "done")
+    goals = run["goals"]
+    if goals:
+        _log(rid, f"targets given: {', '.join(goals)}")
+        _stage(store, run, "probe", "done")
+        _stage(store, run, "select", "done")
+    else:
+        rows = lean.probe(source, modules, [], sink, cfg.probe_timeout)
+        graph = dagcut.build_graph(rows)
+        _log(rid, f"{len(graph.nodes)} authored declarations in the dependency graph")
+        _stage(store, run, "probe", "done")
+        _stage(store, run, "select", "running")
+        goals = _select(cfg, rid, run["repo"], graph)
+        run["goals"] = goals
+        store.write(run)
+        _log(rid, f"targets: {', '.join(goals)}")
+        _stage(store, run, "select", "done")
 
     _stage(store, run, "cut", "running")
     rows = lean.probe(source, modules, goals, sink, cfg.probe_timeout)

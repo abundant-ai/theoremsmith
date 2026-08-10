@@ -156,6 +156,24 @@ def package_modules(root: Path) -> tuple[str, list[str]]:
 
 
 _COLLISION = re.compile(r"import (\S+) failed, environment already contains '.*?' from (\S+)")
+_IMPORT = re.compile(r"^\s*import\s+(\S+)", re.M)
+
+
+def import_closure(root: Path, modules: list[str], focus: set[str]) -> set[str]:
+    modset = set(modules)
+    seen: set[str] = set()
+    stack = list(focus)
+    while stack:
+        m = stack.pop()
+        if m in seen or m not in modset:
+            continue
+        seen.add(m)
+        f = root / (m.replace(".", "/") + ".lean")
+        if f.exists():
+            for imp in _IMPORT.findall(f.read_text(encoding="utf-8", errors="replace")):
+                if imp in modset and imp not in seen:
+                    stack.append(imp)
+    return seen
 
 
 def _modules_defining(root: Path, modules: list[str], goals: list[str]) -> set[str]:
@@ -179,8 +197,13 @@ def probe(root: Path, modules: list[str], goals: list[str], sink: Sink, timeout:
     script = out_dir / "dag_probe.lean"
     jsonl = out_dir / "dag.jsonl"
     script.write_text((ASSETS / "dag_probe.lean").read_text(encoding="utf-8"), encoding="utf-8")
-    keep = list(modules)
     protected = _modules_defining(root, modules, goals)
+    if protected:
+        keep = sorted(import_closure(root, modules, protected))
+        if len(keep) < len(modules):
+            sink(f"probing {len(keep)} of {len(modules)} modules reachable from the goals")
+    else:
+        keep = list(modules)
     dropped: list[str] = []
     env = lake_env(root)
     while True:

@@ -45,6 +45,38 @@ def test_probe_drops_a_clashing_module_but_never_the_goal(tmp_path, monkeypatch)
     assert "Pkg.tut.a" not in calls[-1]         # the clashing one was
 
 
+def test_import_closure_follows_internal_imports_only(tmp_path):
+    root = tmp_path / "r"
+    (root / "P").mkdir(parents=True)
+    (root / "P" / "goal.lean").write_text("import P.helper\nimport Mathlib.Data\ntheorem g : True := trivial\n")
+    (root / "P" / "helper.lean").write_text("import P.deep\n")
+    (root / "P" / "deep.lean").write_text("-- leaf\n")
+    (root / "P" / "unrelated.lean").write_text("theorem u : True := trivial\n")
+    mods = ["P.goal", "P.helper", "P.deep", "P.unrelated"]
+    assert lean.import_closure(root, mods, {"P.goal"}) == {"P.goal", "P.helper", "P.deep"}
+
+
+def test_probe_restricts_to_the_goal_closure(tmp_path, monkeypatch):
+    root = tmp_path / "r"
+    (root / "P").mkdir(parents=True)
+    (root / "P" / "goal.lean").write_text("import P.helper\ntheorem g : True := trivial\n")
+    (root / "P" / "helper.lean").write_text("-- leaf\n")
+    (root / "P" / "other.lean").write_text("theorem weird : True := trivial\n")
+    mods = ["P.goal", "P.helper", "P.other"]
+    probed: list[list[str]] = []
+
+    def fake_stream(argv, cwd, sink, timeout, env=None):
+        keep = argv[argv.index("--run") + 2].split(",")
+        probed.append(keep)
+        Path(argv[argv.index("--run") + 3]).write_text(
+            json.dumps({"record": "decl", "name": "g", "user": "g", "kind": "theorem"}) + "\n")
+        return 0
+
+    monkeypatch.setattr(lean, "stream", fake_stream)
+    lean.probe(root, mods, ["g"], lambda _l: None, 60)
+    assert probed[0] == ["P.goal", "P.helper"]      # 'P.other' (the clashing one) never imported
+
+
 def test_probe_gives_up_rather_than_drop_the_only_module(tmp_path, monkeypatch):
     root = _pkg(tmp_path)
     monkeypatch.setattr(lean, "stream",
