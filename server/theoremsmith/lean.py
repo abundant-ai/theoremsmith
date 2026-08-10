@@ -63,9 +63,12 @@ def stream(argv: list[str], cwd: Path, sink: Sink, timeout: int, env: dict | Non
             proc.wait(timeout=30)
 
 
-def clone(url: str, sha: str, dest: Path, sink: Sink, timeout: int) -> str:
+def clone(url: str, sha: str, dest: Path, sink: Sink, timeout: int, shallow: bool = False) -> str:
     dest.mkdir(parents=True, exist_ok=True)
-    if stream(["git", "clone", "--filter=blob:none", url, str(dest)], dest.parent, sink, timeout) != 0:
+    argv = ["git", "clone", "--filter=blob:none"]
+    if shallow and not sha:
+        argv += ["--depth", "1"]
+    if stream([*argv, url, str(dest)], dest.parent, sink, timeout) != 0:
         raise LeanError(f"clone failed: {url}")
     if sha:
         if stream(["git", "checkout", "--detach", sha], dest, sink, timeout) != 0:

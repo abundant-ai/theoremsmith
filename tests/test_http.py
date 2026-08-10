@@ -21,7 +21,8 @@ def test_config_reports_the_model_and_whether_a_key_is_set(client):
     body = c.get("/api/config").json()
     assert body["configured"] is True
     assert body["max_runs"] == 1
-    assert body["model"]
+    assert body["create_model"]
+    assert body["solve_model"]
 
 
 @pytest.mark.parametrize("repo", [
@@ -45,6 +46,33 @@ def test_a_github_repo_is_accepted_in_any_of_its_spellings(client, repo):
 def test_anything_that_is_not_a_github_slug_is_refused(client, repo):
     c, _ = client
     assert c.post("/api/runs", json={"repo": repo}).status_code == 400
+
+
+def test_scan_clones_curates_and_returns_options(client, monkeypatch):
+    c, module = client
+    monkeypatch.setattr(module.lean, "clone", lambda *a, **k: "deadbeef")
+    monkeypatch.setattr(module.scan, "scan_repo",
+                        lambda *a, **k: [module.scan.Option("N.thm", "N/A.lean", "it is true")])
+    body = c.post("/api/scan", json={"repo": "owner/name"}).json()
+    assert body["repo"] == "owner/name"
+    assert body["options"] == [{"name": "N.thm", "file": "N/A.lean", "gloss": "it is true"}]
+
+
+def test_scan_refuses_a_non_github_repo(client):
+    c, _ = client
+    assert c.post("/api/scan", json={"repo": "file:///etc"}).status_code == 400
+
+
+def test_scan_surfaces_a_clone_failure_as_422(client, monkeypatch):
+    c, module = client
+
+    def boom(*a, **k):
+        raise module.lean.LeanError("clone failed: owner/name")
+
+    monkeypatch.setattr(module.lean, "clone", boom)
+    r = c.post("/api/scan", json={"repo": "owner/name"})
+    assert r.status_code == 422
+    assert "clone failed" in r.json()["detail"]
 
 
 def test_the_run_cap_is_enforced(client):

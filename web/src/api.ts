@@ -46,10 +46,24 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type Config = {
+  create_model: string;
+  solve_model: string;
+  configured: boolean;
+  max_runs: number;
+};
+
+export type ScanOption = { name: string; file: string; gloss: string };
+
 export const api = {
-  config: () => call<{ model: string; configured: boolean; max_runs: number }>("/config"),
+  config: () => call<Config>("/config"),
   runs: () => call<{ runs: Run[] }>("/runs"),
   run: (id: string) => call<Run>(`/runs/${id}`),
+  scan: (repo: string, sha: string) =>
+    call<{ repo: string; options: ScanOption[] }>("/scan", {
+      method: "POST",
+      body: JSON.stringify({ repo, sha }),
+    }),
   create: (repo: string, sha: string, goals: string[]) =>
     call<Run>("/runs", { method: "POST", body: JSON.stringify({ repo, sha, goals }) }),
   remove: (id: string) => call<{ deleted: string }>(`/runs/${id}`, { method: "DELETE" }),

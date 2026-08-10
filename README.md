@@ -18,26 +18,27 @@ cp .env.example .env   # put your key in it
 docker compose up --build
 ```
 
-Open <http://localhost:8000>, press **New run**, paste `leanprover-community/batteries`, and watch.
+Open <http://localhost:8000>, press **New run**, paste `leanprover-community/batteries`, and press
+**Scan theorems**. That clones the source (no build) and offers ten theorems, each with a one-line
+plain-language description; tick the ones you want and press **Build task**.
 
 A repository that depends on mathlib works too, but the first run fetches mathlib's build cache and
 takes much longer; raise `THEOREMSMITH_BUILD_TIMEOUT` before trying one.
 
-Any OpenAI-compatible endpoint works. The default is Kimi:
+Two models, both through one OpenAI-compatible endpoint (OpenRouter by default): the **create**
+model runs the scan, the theorem choice, and the description; the **solve** model runs a task.
 
 | Variable | Default |
 | --- | --- |
-| `THEOREMSMITH_API_KEY` | — (required) |
-| `THEOREMSMITH_BASE_URL` | `https://api.moonshot.ai/v1` |
-| `THEOREMSMITH_MODEL` | `kimi-k2-0905-preview` |
+| `THEOREMSMITH_API_KEY` | — (required; `OPENROUTER_API_KEY` is also read) |
+| `THEOREMSMITH_BASE_URL` | `https://openrouter.ai/api/v1` |
+| `THEOREMSMITH_CREATE_MODEL` | `moonshotai/kimi-k2.7-code` |
+| `THEOREMSMITH_SOLVE_MODEL` | `z-ai/glm-5.2` |
 | `THEOREMSMITH_MAX_RUNS` | `2` |
 | `THEOREMSMITH_DATA` | `/data` |
 | `THEOREMSMITH_BUILD_TIMEOUT` | `3600` seconds |
 | `THEOREMSMITH_PROBE_TIMEOUT` | `900` seconds |
 | `THEOREMSMITH_CLONE_TIMEOUT` | `600` seconds |
-
-For OpenRouter, set `THEOREMSMITH_BASE_URL=https://openrouter.ai/api/v1` and
-`THEOREMSMITH_MODEL=moonshotai/kimi-k2`.
 
 ## Host it on Daytona
 

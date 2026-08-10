@@ -14,7 +14,10 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import events, pipeline
+import shutil
+import tempfile
+
+from . import events, lean, pipeline, scan
 from .config import Config
 from .store import Store
 
@@ -54,7 +57,31 @@ def _repo(raw: str) -> str:
 
 @app.get("/api/config")
 def config() -> dict:
-    return {"model": cfg.model, "configured": bool(cfg.api_key), "max_runs": cfg.max_runs}
+    return {"create_model": cfg.create_model, "solve_model": cfg.solve_model,
+            "configured": bool(cfg.api_key), "max_runs": cfg.max_runs}
+
+
+class ScanRequest(BaseModel):
+    repo: str = Field(min_length=3, max_length=200)
+    sha: str = ""
+
+
+@app.post("/api/scan")
+def scan_repo(body: ScanRequest) -> dict:
+    if not cfg.api_key:
+        raise HTTPException(400, "no API key is set on the server")
+    repo = _repo(body.repo)
+    url = f"https://github.com/{repo}"
+    work = Path(tempfile.mkdtemp(prefix="theoremsmith-scan-", dir=cfg.data_dir))
+    try:
+        lean.clone(url, body.sha.strip(), work / "src", lambda _l: None, cfg.clone_timeout,
+                   shallow=True)
+        options = scan.scan_repo(cfg, repo, work / "src")
+    except (lean.LeanError, scan.llm.LlmError) as exc:
+        raise HTTPException(422, str(exc)[:300]) from exc
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return {"repo": repo, "options": [o.__dict__ for o in options]}
 
 
 @app.get("/api/runs")

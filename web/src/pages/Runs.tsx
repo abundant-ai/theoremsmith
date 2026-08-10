@@ -19,13 +19,13 @@ import { since } from "../format";
 export default function Runs() {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [open, setOpen] = useState(false);
-  const [model, setModel] = useState("");
+  const [models, setModels] = useState("");
   const [configured, setConfigured] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     api.config().then((c) => {
-      setModel(c.model);
+      setModels(`create ${c.create_model} · solve ${c.solve_model}`);
       setConfigured(c.configured);
     });
   }, []);
@@ -51,7 +51,7 @@ export default function Runs() {
 
       <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
         <Typography variant="caption">
-          {model ? `model ${model}` : " "}
+          {models || " "}
         </Typography>
         <Button variant="contained" onClick={() => setOpen(true)} disabled={!configured}>
           New run
