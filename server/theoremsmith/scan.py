@@ -79,6 +79,7 @@ class Candidate:
     signature: str
     doc: str
     proof_lines: int
+    has_sorry: bool = False
 
 
 def _docs_by_end_line(text: str) -> dict[int, str]:
@@ -122,10 +123,10 @@ def enumerate_file(rel: str, text: str) -> list[Candidate]:
         while end < len(masked) and not _STRUCTURAL.match(masked[end]):
             end += 1
         block = "\n".join(raw[idx:end])
-        sig = block
-        cut = re.search(r":=|\bby\b", _mask(block))
-        if cut:
-            sig = block[: cut.start()]
+        mblock = _mask(block)
+        cut = re.search(r":=|\bby\b", mblock)
+        sig = block[: cut.start()] if cut else block
+        proof = mblock[cut.end() :] if cut else ""
         out.append(Candidate(
             name=".".join([*ns, m.group(1)]),
             file=rel,
@@ -133,6 +134,7 @@ def enumerate_file(rel: str, text: str) -> list[Candidate]:
             signature=" ".join(sig.split())[:400],
             doc=docs.get(idx, ""),
             proof_lines=sum(1 for ln in raw[idx:end] if ln.strip()),
+            has_sorry=bool(re.search(r"\b(sorry|sorryAx|admit)\b", proof)),
         ))
     return out
 
@@ -154,7 +156,7 @@ def shortlist(cands: list[Candidate], limit: int = 40) -> list[Candidate]:
     seen: set[str] = set()
     keep: list[Candidate] = []
     for c in sorted(cands, key=lambda c: c.proof_lines, reverse=True):
-        if c.proof_lines < 2 or c.name in seen:
+        if c.proof_lines < 2 or c.name in seen or c.has_sorry:
             continue
         seen.add(c.name)
         keep.append(c)

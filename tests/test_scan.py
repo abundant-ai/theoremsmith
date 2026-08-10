@@ -81,6 +81,24 @@ def test_curate_returns_named_options_with_glosses(monkeypatch):
     assert opts[0].file == "A/B.lean"
 
 
+def test_shortlist_drops_unproved_theorems():
+    text = (
+        "theorem real (n : Nat) : n = n := by\n  rfl\n  rfl\n"
+        "theorem stub (n : Nat) : n = n := by\n  sorry\n  sorry\n"
+        "theorem admitted (n : Nat) : n = n := by\n  admit\n  admit\n"
+        "theorem term_stub : True :=\n  sorry\n"
+        "theorem sorry_in_comment : True := by\n  -- not a real sorry\n  trivial\n"
+    )
+    cands = {c.name: c for c in scan.enumerate_file("A.lean", text)}
+    assert cands["real"].has_sorry is False
+    assert cands["stub"].has_sorry is True
+    assert cands["admitted"].has_sorry is True
+    assert cands["term_stub"].has_sorry is True
+    assert cands["sorry_in_comment"].has_sorry is False
+    kept = {c.name for c in scan.shortlist(list(cands.values()))}
+    assert kept == {"real", "sorry_in_comment"}
+
+
 def test_comment_masking_ignores_a_theorem_inside_a_block_comment():
     text = "namespace N\n/- theorem hidden : True := trivial -/\ntheorem real : True := by trivial\nend N\n"
     names = {c.name for c in scan.enumerate_file("C.lean", text)}

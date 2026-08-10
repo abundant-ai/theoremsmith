@@ -2,6 +2,7 @@ import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
+import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -14,7 +15,11 @@ import Typography from "@mui/material/Typography";
 import { api, type Run, type ScanOption } from "../api";
 import { monoFont } from "../theme";
 
-const EXAMPLE = "leanprover-community/batteries";
+const EXAMPLES = [
+  { repo: "stepchowfun/proofs", note: "tiny, plain-English facts" },
+  { repo: "leanprover-community/batteries", note: "lists & trees, builds fast" },
+  { repo: "lean-ja/lean-by-example", note: "famous theorems" },
+];
 
 type Phase = "form" | "scanning" | "pick";
 
@@ -101,10 +106,23 @@ export default function NewRunDialog({
               placeholder="owner/name"
               value={repo}
               onChange={(e) => setRepo(e.target.value)}
-              helperText={`for example ${EXAMPLE}`}
               disabled={phase === "scanning"}
               autoFocus
             />
+            <Box sx={{ mt: -1.5, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+              {EXAMPLES.map((ex) => (
+                <Chip
+                  key={ex.repo}
+                  label={ex.repo.split("/")[1]}
+                  title={`${ex.repo} — ${ex.note}`}
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setRepo(ex.repo)}
+                  disabled={phase === "scanning"}
+                  sx={{ fontFamily: monoFont }}
+                />
+              ))}
+            </Box>
             <TextField
               label="Commit (optional)"
               placeholder="defaults to the default branch"
