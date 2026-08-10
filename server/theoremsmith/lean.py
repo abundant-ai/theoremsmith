@@ -155,24 +155,67 @@ def package_modules(root: Path) -> tuple[str, list[str]]:
     return best, mods
 
 
+_COLLISION = re.compile(r"import (\S+) failed, environment already contains '.*?' from (\S+)")
+
+
+def _modules_defining(root: Path, modules: list[str], goals: list[str]) -> set[str]:
+    leaves = {g.split(".")[-1] for g in goals}
+    if not leaves:
+        return set()
+    pat = re.compile(r"^\s*(?:@\[[^\]]*\]\s*)*(?:theorem|lemma)\s+(\S+)", re.M)
+    hit: set[str] = set()
+    for m in modules:
+        f = root / (m.replace(".", "/") + ".lean")
+        if not f.exists():
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        if any(name.split(".")[-1] in leaves for name in pat.findall(text)):
+            hit.add(m)
+    return hit
+
+
 def probe(root: Path, modules: list[str], goals: list[str], sink: Sink, timeout: int) -> list[dict]:
     out_dir = Path(tempfile.mkdtemp(prefix="theoremsmith-probe-"))
     script = out_dir / "dag_probe.lean"
     jsonl = out_dir / "dag.jsonl"
     script.write_text((ASSETS / "dag_probe.lean").read_text(encoding="utf-8"), encoding="utf-8")
-    argv = ["lake", "env", "lean", "-DmaxRecDepth=100000", "--run", str(script),
-            ",".join(modules), str(jsonl), *goals]
-    rc = stream(argv, root, sink, timeout, lake_env(root))
-    if rc != 0:
-        raise LeanError(f"probe exited {rc}")
-    rows: list[dict] = []
-    for line in jsonl.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line:
-            try:
-                rows.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    if not rows:
-        raise LeanError("probe produced no declarations")
-    return rows
+    keep = list(modules)
+    protected = _modules_defining(root, modules, goals)
+    dropped: list[str] = []
+    env = lake_env(root)
+    while True:
+        captured: list[str] = []
+
+        def cap(line: str) -> None:
+            captured.append(line)
+            sink(line)
+
+        jsonl.unlink(missing_ok=True)
+        argv = ["lake", "env", "lean", "-DmaxRecDepth=100000", "--run", str(script),
+                ",".join(keep), str(jsonl), *goals]
+        rc = stream(argv, root, cap, timeout, env)
+        rows: list[dict] = []
+        if jsonl.exists():
+            for line in jsonl.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    try:
+                        rows.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        if rc == 0 and rows:
+            if dropped:
+                sink(f"probe skipped {len(dropped)} modules with clashing names "
+                     f"({', '.join(dropped[:4])}{'…' if len(dropped) > 4 else ''})")
+            return rows
+        clash = next((m for line in captured if (m := _COLLISION.search(line))), None)
+        if not clash:
+            break
+        a, b = clash.group(1), clash.group(2)
+        victim = b if b not in protected else a if a not in protected else None
+        if victim is None or victim not in keep or len(keep) <= 1:
+            break
+        keep.remove(victim)
+        dropped.append(victim)
+    raise LeanError(f"probe exited {rc}" + (f" after dropping {len(dropped)} modules" if dropped else "")
+                    + (" (produced no declarations)" if rc == 0 else ""))
