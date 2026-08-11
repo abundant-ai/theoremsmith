@@ -78,6 +78,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ repo, sha }),
     }),
+  scanStreamUrl: (repo: string, sha: string) =>
+    `/api/scan/stream?repo=${encodeURIComponent(repo)}&sha=${encodeURIComponent(sha)}`,
   create: (repo: string, sha: string, goals: string[]) =>
     call<Run>("/runs", { method: "POST", body: JSON.stringify({ repo, sha, goals }) }),
   submit: (id: string) => call<OddishRun>(`/runs/${id}/submit`, { method: "POST" }),

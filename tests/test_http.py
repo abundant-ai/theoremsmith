@@ -112,6 +112,34 @@ def test_prebuild_starts_warming_the_examples(client, monkeypatch):
     assert "stepchowfun/proofs" in body["cached"]
 
 
+def test_scan_stream_serves_the_cache_instantly(client):
+    c, module = client
+    from theoremsmith import scan
+
+    scan.write_cache(module.cfg, "owner/name", [scan.Option("N.thm", "N/A.lean", "cached")])
+    with c.stream("GET", "/api/scan/stream?repo=owner/name") as r:
+        body = "".join(r.iter_text())
+    assert '"cached": true' in body
+    assert "N.thm" in body
+
+
+def test_scan_stream_relays_model_deltas_then_options(client, monkeypatch):
+    c, module = client
+    from theoremsmith import scan
+
+    def fake_scan(repo, sha, on_delta=lambda _p: None):
+        on_delta("choosing ")
+        on_delta("theorems")
+        return [scan.Option("N.thm", "N/A.lean", "gloss")]
+
+    monkeypatch.setattr(module, "_scan", fake_scan)
+    with c.stream("GET", "/api/scan/stream?repo=owner/fresh") as r:
+        body = "".join(r.iter_text())
+    assert "choosing" in body and "theorems" in body
+    assert "N.thm" in body
+    assert scan.read_cache(module.cfg, "owner/fresh")[0].name == "N.thm"
+
+
 def test_the_run_cap_is_enforced(client):
     c, _ = client
     assert c.post("/api/runs", json={"repo": "owner/one"}).status_code == 200

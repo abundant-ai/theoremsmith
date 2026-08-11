@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
@@ -37,6 +37,19 @@ export default function NewRunDialog({
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [scanLog, setScanLog] = useState("");
+  const stream = useRef<EventSource | null>(null);
+  const logBox = useRef<HTMLDivElement>(null);
+
+  const stopStream = () => {
+    stream.current?.close();
+    stream.current = null;
+  };
+
+  useEffect(() => {
+    const el = logBox.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [scanLog]);
 
   useEffect(() => {
     if (open) {
@@ -45,13 +58,17 @@ export default function NewRunDialog({
     }
   }, [open, initialRepo]);
 
+  useEffect(() => stopStream, []);
+
   function reset() {
+    stopStream();
     setRepo("");
     setSha("");
     setPhase("form");
     setOptions([]);
     setPicked(new Set());
     setError("");
+    setScanLog("");
   }
 
   function close() {
@@ -59,23 +76,47 @@ export default function NewRunDialog({
     reset();
   }
 
-  async function scan() {
+  function scan() {
     setPhase("scanning");
     setError("");
-    try {
-      const res = await api.scan(repo, sha);
-      if (!res.options.length) {
-        setError("nothing in this repository was worth cutting into a task");
+    setScanLog("");
+    stopStream();
+    const source = new EventSource(api.scanStreamUrl(repo, sha));
+    stream.current = source;
+    source.onmessage = (e) => {
+      const d = JSON.parse(e.data) as { text?: string; options?: ScanOption[]; error?: string };
+      if (d.error) {
+        stopStream();
+        setError(d.error);
         setPhase("form");
         return;
       }
-      setOptions(res.options);
-      setPicked(new Set());
-      setPhase("pick");
-    } catch (e) {
-      setError(String(e instanceof Error ? e.message : e));
-      setPhase("form");
-    }
+      if (d.text != null) {
+        setScanLog((prev) => (prev + d.text).slice(-4000));
+        return;
+      }
+      if (d.options != null) {
+        stopStream();
+        if (!d.options.length) {
+          setError("nothing in this repository was worth cutting into a task");
+          setPhase("form");
+          return;
+        }
+        setOptions(d.options);
+        setPicked(new Set());
+        setPhase("pick");
+      }
+    };
+    source.onerror = () => {
+      stopStream();
+      setPhase((p) => {
+        if (p === "scanning") {
+          setError("the scan connection dropped");
+          return "form";
+        }
+        return p;
+      });
+    };
   }
 
   function toggle(name: string) {
@@ -143,11 +184,33 @@ export default function NewRunDialog({
               pre-scanned and open instantly.
             </Typography>
             {phase === "scanning" && (
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-                <CircularProgress size={14} thickness={6} sx={{ color: "text.primary" }} />
-                <Typography variant="caption">
-                  reading {repo} and choosing theorems — this can take many minutes…
-                </Typography>
+              <Stack spacing={1}>
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+                  <CircularProgress size={14} thickness={6} sx={{ color: "text.primary" }} />
+                  <Typography variant="caption">
+                    reading {repo} and choosing theorems — this can take many minutes…
+                  </Typography>
+                </Stack>
+                {scanLog && (
+                  <Box
+                    ref={logBox}
+                    sx={{
+                      maxHeight: 150,
+                      overflowY: "auto",
+                      border: 1,
+                      borderColor: "divider",
+                      p: 1,
+                      fontFamily: monoFont,
+                      fontSize: 11,
+                      lineHeight: 1.6,
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      color: "text.secondary",
+                    }}
+                  >
+                    {scanLog}
+                  </Box>
+                )}
               </Stack>
             )}
             {error && (

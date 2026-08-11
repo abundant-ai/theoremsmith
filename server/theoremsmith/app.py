@@ -72,12 +72,12 @@ class ScanRequest(BaseModel):
     sha: str = ""
 
 
-def _scan(repo: str, sha: str) -> list[scan.Option]:
+def _scan(repo: str, sha: str, on_delta=lambda _p: None) -> list[scan.Option]:
     work = Path(tempfile.mkdtemp(prefix="theoremsmith-scan-", dir=cfg.data_dir))
     try:
         lean.clone(f"https://github.com/{repo}", sha, work / "src", lambda _l: None,
                    cfg.clone_timeout, shallow=True)
-        return scan.scan_repo(cfg, repo, work / "src")
+        return scan.scan_repo(cfg, repo, work / "src", on_delta=on_delta)
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -120,6 +120,48 @@ def prebuild_examples() -> dict:
     return {"warming": True,
             "cached": {ex["repo"]: scan.read_cache(cfg, ex["repo"]) is not None
                        for ex in cfg.examples if ex.get("repo")}}
+
+
+@app.get("/api/scan/stream")
+async def scan_stream(repo: str, sha: str = "") -> StreamingResponse:
+    if not cfg.api_key:
+        raise HTTPException(400, "no API key is set on the server")
+    repo = _repo(repo)
+    sha = sha.strip()
+
+    async def gen():
+        if not sha:
+            cached = scan.read_cache(cfg, repo)
+            if cached is not None:
+                yield _sse({"options": [o.__dict__ for o in cached], "cached": True})
+                return
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        put = lambda item: loop.call_soon_threadsafe(queue.put_nowait, item)
+
+        def work():
+            try:
+                options = _scan(repo, sha, lambda piece: put({"text": piece}))
+                if not sha:
+                    scan.write_cache(cfg, repo, options)
+                put({"options": [o.__dict__ for o in options]})
+            except (lean.LeanError, scan.llm.LlmError) as exc:
+                put({"error": str(exc)[:300]})
+            except Exception as exc:  # noqa: BLE001
+                put({"error": str(exc)[:200] or "the scan failed"})
+            finally:
+                put(None)
+
+        loop.run_in_executor(None, work)
+        yield _sse({"text": f"cloning {repo} and reading its theorems…\n"})
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield _sse(item)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/runs")
