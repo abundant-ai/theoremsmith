@@ -58,7 +58,8 @@ def _repo(raw: str) -> str:
 @app.get("/api/config")
 def config() -> dict:
     return {"create_model": cfg.create_model, "solve_model": cfg.solve_model,
-            "configured": bool(cfg.api_key), "max_runs": cfg.max_runs}
+            "configured": bool(cfg.api_key), "max_runs": cfg.max_runs,
+            "examples": cfg.examples}
 
 
 class ScanRequest(BaseModel):

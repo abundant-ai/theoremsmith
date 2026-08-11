@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
@@ -12,14 +12,8 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
-import { api, type Run, type ScanOption } from "../api";
+import { api, type Example, type Run, type ScanOption } from "../api";
 import { monoFont } from "../theme";
-
-const EXAMPLES = [
-  { repo: "stepchowfun/proofs", note: "tiny, plain-English facts" },
-  { repo: "leanprover-community/batteries", note: "lists & trees, no mathlib" },
-  { repo: "leanprover/TensorLib", note: "array & dtype facts, no mathlib" },
-];
 
 type Phase = "form" | "scanning" | "pick";
 
@@ -27,18 +21,29 @@ export default function NewRunDialog({
   open,
   onClose,
   onCreated,
+  examples = [],
+  initialRepo = "",
 }: {
   open: boolean;
   onClose: () => void;
   onCreated: (run: Run) => void;
+  examples?: Example[];
+  initialRepo?: string;
 }) {
-  const [repo, setRepo] = useState("");
+  const [repo, setRepo] = useState(initialRepo);
   const [sha, setSha] = useState("");
   const [phase, setPhase] = useState<Phase>("form");
   const [options, setOptions] = useState<ScanOption[]>([]);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setRepo(initialRepo);
+      setPhase("form");
+    }
+  }, [open, initialRepo]);
 
   function reset() {
     setRepo("");
@@ -109,20 +114,22 @@ export default function NewRunDialog({
               disabled={phase === "scanning"}
               autoFocus
             />
-            <Box sx={{ mt: -1.5, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
-              {EXAMPLES.map((ex) => (
-                <Chip
-                  key={ex.repo}
-                  label={ex.repo.split("/")[1]}
-                  title={`${ex.repo} — ${ex.note}`}
-                  size="small"
-                  variant="outlined"
-                  onClick={() => setRepo(ex.repo)}
-                  disabled={phase === "scanning"}
-                  sx={{ fontFamily: monoFont }}
-                />
-              ))}
-            </Box>
+            {examples.length > 0 && (
+              <Box sx={{ mt: -1.5, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+                {examples.map((ex) => (
+                  <Chip
+                    key={ex.repo}
+                    label={ex.repo.split("/")[1]}
+                    title={ex.note ? `${ex.repo} — ${ex.note}` : ex.repo}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setRepo(ex.repo)}
+                    disabled={phase === "scanning"}
+                    sx={{ fontFamily: monoFont }}
+                  />
+                ))}
+              </Box>
+            )}
             <TextField
               label="Commit (optional)"
               placeholder="defaults to the default branch"

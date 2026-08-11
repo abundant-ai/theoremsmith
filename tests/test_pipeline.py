@@ -30,7 +30,7 @@ def decl(user, kind="theorem", type_deps=(), value_deps=(), file="", start=1, en
 def cfg(tmp_path: Path) -> Config:
     return Config(data_dir=tmp_path / "data", base_url="http://stub", api_key="k",
                   create_model="stub", solve_model="stub", max_runs=1,
-                  build_timeout=10, probe_timeout=10, clone_timeout=10)
+                  build_timeout=10, probe_timeout=10, clone_timeout=10, examples=[])
 
 
 @pytest.fixture

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -11,21 +12,30 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 
-import { api, type Run } from "../api";
+import { api, type Example, type Run } from "../api";
 import NewRunDialog from "../components/NewRunDialog";
 import StatusChip from "../components/StatusChip";
+import { monoFont } from "../theme";
 import { since } from "../format";
 
 export default function Runs() {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [open, setOpen] = useState(false);
+  const [initialRepo, setInitialRepo] = useState("");
   const [models, setModels] = useState("");
+  const [examples, setExamples] = useState<Example[]>([]);
   const [configured, setConfigured] = useState(true);
   const navigate = useNavigate();
+
+  const openWith = (repo: string) => {
+    setInitialRepo(repo);
+    setOpen(true);
+  };
 
   useEffect(() => {
     api.config().then((c) => {
       setModels(`create ${c.create_model} · solve ${c.solve_model}`);
+      setExamples(c.examples);
       setConfigured(c.configured);
     });
   }, []);
@@ -53,7 +63,7 @@ export default function Runs() {
         <Typography variant="caption">
           {models || " "}
         </Typography>
-        <Button variant="contained" onClick={() => setOpen(true)} disabled={!configured}>
+        <Button variant="contained" onClick={() => openWith("")} disabled={!configured}>
           New run
         </Button>
       </Stack>
@@ -63,6 +73,30 @@ export default function Runs() {
           <Typography variant="body2" color="text.secondary">
             No runs yet. Point it at a Lean 4 repository and watch a proof task get built.
           </Typography>
+          {examples.length > 0 && (
+            <>
+              <Typography variant="caption" sx={{ display: "block", mt: 2, mb: 1 }}>
+                or start from one of these
+              </Typography>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ justifyContent: "center", flexWrap: "wrap", gap: 1 }}
+              >
+                {examples.map((ex) => (
+                  <Chip
+                    key={ex.repo}
+                    label={ex.repo}
+                    title={ex.note}
+                    onClick={() => openWith(ex.repo)}
+                    disabled={!configured}
+                    variant="outlined"
+                    sx={{ fontFamily: monoFont }}
+                  />
+                ))}
+              </Stack>
+            </>
+          )}
         </Box>
       ) : (
         <Table size="small">
@@ -113,6 +147,8 @@ export default function Runs() {
         open={open}
         onClose={() => setOpen(false)}
         onCreated={(run) => navigate(`/runs/${run.id}`)}
+        examples={examples}
+        initialRepo={initialRepo}
       />
     </Stack>
   );

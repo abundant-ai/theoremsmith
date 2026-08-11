@@ -46,11 +46,14 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type Example = { repo: string; note: string };
+
 export type Config = {
   create_model: string;
   solve_model: string;
   configured: boolean;
   max_runs: number;
+  examples: Example[];
 };
 
 export type ScanOption = { name: string; file: string; gloss: string };

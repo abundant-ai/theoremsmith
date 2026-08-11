@@ -23,6 +23,7 @@ def test_config_reports_the_model_and_whether_a_key_is_set(client):
     assert body["max_runs"] == 1
     assert body["create_model"]
     assert body["solve_model"]
+    assert any(e["repo"] == "stepchowfun/proofs" for e in body["examples"])
 
 
 @pytest.mark.parametrize("repo", [

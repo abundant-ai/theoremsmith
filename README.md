@@ -36,6 +36,7 @@ model runs the scan, the theorem choice, and the description; the **solve** mode
 | `THEOREMSMITH_SOLVE_MODEL` | `z-ai/glm-5.2` |
 | `THEOREMSMITH_MAX_RUNS` | `2` |
 | `THEOREMSMITH_DATA` | `/data` |
+| `THEOREMSMITH_EXAMPLES` | the three verified example repos (override: `owner/a\|note, owner/b`) |
 | `THEOREMSMITH_BUILD_TIMEOUT` | `3600` seconds |
 | `THEOREMSMITH_PROBE_TIMEOUT` | `900` seconds |
 | `THEOREMSMITH_CLONE_TIMEOUT` | `600` seconds |
