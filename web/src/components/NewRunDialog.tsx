@@ -17,8 +17,8 @@ import { monoFont } from "../theme";
 
 const EXAMPLES = [
   { repo: "stepchowfun/proofs", note: "tiny, plain-English facts" },
-  { repo: "leanprover-community/batteries", note: "lists & trees, builds fast" },
-  { repo: "lean-ja/lean-by-example", note: "famous theorems" },
+  { repo: "leanprover-community/batteries", note: "lists & trees, no mathlib" },
+  { repo: "leanprover/TensorLib", note: "array & dtype facts, no mathlib" },
 ];
 
 type Phase = "form" | "scanning" | "pick";
