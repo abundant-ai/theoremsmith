@@ -73,7 +73,7 @@ def test_curate_returns_named_options_with_glosses(monkeypatch):
 
     monkeypatch.setattr(scan.llm, "chat", fake_chat)
     cfg = Config(data_dir=Path("/tmp"), base_url="x", api_key="k", create_model="kimi",
-                 solve_model="glm", max_runs=1, build_timeout=1, probe_timeout=1,
+                 max_runs=1, build_timeout=1, probe_timeout=1,
                  clone_timeout=1, examples=[])
     opts = scan.curate(cfg, "demo/demo", cands, count=10)
 

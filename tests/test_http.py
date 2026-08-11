@@ -22,7 +22,9 @@ def test_config_reports_the_model_and_whether_a_key_is_set(client):
     assert body["configured"] is True
     assert body["max_runs"] == 1
     assert body["create_model"]
-    assert body["solve_model"]
+    assert body["oddish_agent"] == "claude-code"
+    assert body["oddish_model"] == "glm-5.2"
+    assert "oddish_available" in body
     assert any(e["repo"] == "stepchowfun/proofs" for e in body["examples"])
 
 
@@ -186,3 +188,60 @@ def test_a_finished_run_with_no_events_left_still_closes_the_stream(client):
     with c.stream("GET", f"/api/runs/{created['id']}/events") as response:
         body = "".join(response.iter_text())
     assert '"kind": "end"' in body
+
+
+def _finished_run(module, verified=True):
+    created = module.store.create("owner/name", "sha", [], False)
+    (module.store.dir(created["id"]) / "task").mkdir()
+    run = module.store.read(created["id"])
+    run["status"] = "done"
+    run["result"] = {"targets": ["Foo.bar"], "verified": verified}
+    module.store.write(run)
+    return created["id"]
+
+
+def test_submit_sends_a_verified_run_to_oddish_and_stores_the_link(client, monkeypatch):
+    c, module = client
+    rid = _finished_run(module)
+    info = {"public_url": "https://oddish.app/share/tok", "agent": "claude-code", "model": "glm-5.2"}
+    monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
+    monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest: dest)
+    monkeypatch.setattr(module.oddish, "submit", lambda cfg, packed, log: info)
+
+    body = c.post(f"/api/runs/{rid}/submit").json()
+    assert body["public_url"] == "https://oddish.app/share/tok"
+    assert module.store.read(rid)["result"]["oddish"]["public_url"] == "https://oddish.app/share/tok"
+
+
+def test_submit_refuses_a_run_that_did_not_verify(client, monkeypatch):
+    c, module = client
+    monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
+    rid = _finished_run(module, verified=False)
+    assert c.post(f"/api/runs/{rid}/submit").status_code == 409
+
+
+def test_submit_is_unavailable_without_the_oddish_cli(client, monkeypatch):
+    c, module = client
+    monkeypatch.setattr(module.oddish, "available", lambda _cfg: False)
+    rid = _finished_run(module)
+    assert c.post(f"/api/runs/{rid}/submit").status_code == 503
+
+
+def test_submit_surfaces_an_oddish_failure_as_502(client, monkeypatch):
+    c, module = client
+    rid = _finished_run(module)
+    monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
+    monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest: dest)
+
+    def boom(cfg, packed, log):
+        raise module.oddish.OddishError("publishing is disabled")
+
+    monkeypatch.setattr(module.oddish, "submit", boom)
+    r = c.post(f"/api/runs/{rid}/submit")
+    assert r.status_code == 502
+    assert "publishing is disabled" in r.json()["detail"]
+
+
+def test_submit_404s_for_an_unknown_run(client):
+    c, _ = client
+    assert c.post("/api/runs/nope/submit").status_code == 404

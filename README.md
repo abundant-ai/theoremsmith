@@ -25,15 +25,33 @@ plain-language description; tick the ones you want and press **Build task**.
 A repository that depends on mathlib works too, but the first run fetches mathlib's build cache and
 takes much longer; raise `THEOREMSMITH_BUILD_TIMEOUT` before trying one.
 
-Two models, both through one OpenAI-compatible endpoint (OpenRouter by default): the **create**
-model runs the scan, the theorem choice, and the description; the **solve** model runs a task.
+The **create** model runs the scan, the theorem choice, and the description, through one
+OpenAI-compatible endpoint (OpenRouter by default).
+
+## Send it to Oddish
+
+theoremsmith builds the task; it does not solve it. When a run finishes and its original proofs
+earn reward 1, the run page offers **Run on Oddish**. It asks first, then packages the task as a
+Harbor task (a `Dockerfile` that pins the repo's Lean toolchain and pre-builds it, a `task.toml`,
+and a verifier that runs the shipped grader) and hands it to the [Oddish](https://oddish.app) CLI:
+
+```
+oddish run <task> -a claude-code -m glm-5.2 --publish --background --json
+```
+
+Oddish runs it with Claude Code on glm-5.2 under a 30-minute limit and returns a public link where
+you watch the attempt live. This needs the `oddish` CLI installed and signed in on the server; the
+button is disabled otherwise.
 
 | Variable | Default |
 | --- | --- |
 | `THEOREMSMITH_API_KEY` | — (required; `OPENROUTER_API_KEY` is also read) |
 | `THEOREMSMITH_BASE_URL` | `https://openrouter.ai/api/v1` |
 | `THEOREMSMITH_CREATE_MODEL` | `moonshotai/kimi-k2.7-code` |
-| `THEOREMSMITH_SOLVE_MODEL` | `z-ai/glm-5.2` |
+| `THEOREMSMITH_ODDISH_AGENT` | `claude-code` |
+| `THEOREMSMITH_ODDISH_MODEL` | `glm-5.2` |
+| `THEOREMSMITH_ODDISH_TIMEOUT` | `1800` seconds (the agent's limit on Oddish) |
+| `THEOREMSMITH_ODDISH_ENV` | — (Oddish picks; e.g. `daytona`) |
 | `THEOREMSMITH_MAX_RUNS` | `2` |
 | `THEOREMSMITH_DATA` | `/data` |
 | `THEOREMSMITH_EXAMPLES` | the three verified example repos (override: `owner/a\|note, owner/b`) |
@@ -100,7 +118,10 @@ server/theoremsmith/
   pipeline.py   the seven stages of a run
   lean.py       git, lake, and the probe
   dagcut.py     the dependency graph and the cut
+  scan.py       the pre-build theorem scan behind the menu
   emit.py       writes the task directory and the grader
+  harbor.py     repackages a finished task for Oddish/Harbor
+  oddish.py     submits a task through the Oddish CLI
   llm.py        streaming OpenAI-compatible client
   store.py      runs on disk
   events.py     the event bus behind the live view

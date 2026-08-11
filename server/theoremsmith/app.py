@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 import shutil
 import tempfile
 
-from . import events, lean, pipeline, scan
+from . import events, harbor, lean, oddish, pipeline, scan
 from .config import Config
 from .store import Store
 
@@ -57,9 +57,11 @@ def _repo(raw: str) -> str:
 
 @app.get("/api/config")
 def config() -> dict:
-    return {"create_model": cfg.create_model, "solve_model": cfg.solve_model,
+    return {"create_model": cfg.create_model,
             "configured": bool(cfg.api_key), "max_runs": cfg.max_runs,
-            "examples": cfg.examples}
+            "examples": cfg.examples,
+            "oddish_agent": cfg.oddish_agent, "oddish_model": cfg.oddish_model,
+            "oddish_available": oddish.available(cfg)}
 
 
 class ScanRequest(BaseModel):
@@ -171,6 +173,42 @@ def download_task(run_id: str):
     buf.seek(0)
     return StreamingResponse(buf, media_type="application/zip",
                              headers={"Content-Disposition": f'attachment; filename="{run_id}-task.zip"'})
+
+
+@app.post("/api/runs/{run_id}/submit")
+def submit_to_oddish(run_id: str) -> dict:
+    run = store.read(run_id)
+    if not run:
+        raise HTTPException(404, "no such run")
+    if run["status"] != "done" or not (run.get("result") or {}).get("verified"):
+        raise HTTPException(409, "only a finished, verified run can be sent to Oddish")
+    task_dir = store.dir(run_id) / "task"
+    if not task_dir.exists():
+        raise HTTPException(404, "this run has no task to submit")
+    if not oddish.available(cfg):
+        raise HTTPException(503, f"the `{cfg.oddish_bin}` CLI is not on the server's PATH")
+
+    log = lambda line: events.emit(run_id, "log", text=str(line)[:2000], level="info")
+    events.emit(run_id, "log", text=f"submitting to Oddish: {cfg.oddish_agent} / "
+                f"{cfg.oddish_model}, {cfg.oddish_timeout // 60}-minute limit", level="info")
+    packed = store.dir(run_id) / "oddish"
+    try:
+        harbor.pack(cfg, task_dir, packed)
+        info = oddish.submit(cfg, packed, log)
+    except oddish.OddishError as exc:
+        events.emit(run_id, "log", text=f"Oddish submit failed: {exc}", level="error")
+        raise HTTPException(502, str(exc)[:400]) from exc
+    except (OSError, ValueError) as exc:
+        events.emit(run_id, "log", text=f"could not package the task: {exc}", level="error")
+        raise HTTPException(500, f"could not package the task for Oddish: {str(exc)[:300]}") from exc
+    finally:
+        shutil.rmtree(packed, ignore_errors=True)
+
+    run = store.read(run_id) or run
+    run["result"] = {**(run["result"] or {}), "oddish": info}
+    store.write(run)
+    events.emit(run_id, "log", text=f"Oddish run: {info['public_url']}", level="info")
+    return info
 
 
 @app.get("/api/{rest:path}")

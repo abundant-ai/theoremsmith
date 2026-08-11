@@ -21,7 +21,16 @@ export type Run = {
     verified?: boolean;
     verify?: string;
     statements?: Record<string, string>;
+    oddish?: OddishRun;
   } | null;
+};
+
+export type OddishRun = {
+  public_url: string;
+  experiment_url?: string;
+  experiment?: string;
+  agent?: string;
+  model?: string;
 };
 
 export type Event = {
@@ -50,10 +59,12 @@ export type Example = { repo: string; note: string };
 
 export type Config = {
   create_model: string;
-  solve_model: string;
   configured: boolean;
   max_runs: number;
   examples: Example[];
+  oddish_agent: string;
+  oddish_model: string;
+  oddish_available: boolean;
 };
 
 export type ScanOption = { name: string; file: string; gloss: string };
@@ -69,6 +80,7 @@ export const api = {
     }),
   create: (repo: string, sha: string, goals: string[]) =>
     call<Run>("/runs", { method: "POST", body: JSON.stringify({ repo, sha, goals }) }),
+  submit: (id: string) => call<OddishRun>(`/runs/${id}/submit`, { method: "POST" }),
   remove: (id: string) => call<{ deleted: string }>(`/runs/${id}`, { method: "DELETE" }),
   taskUrl: (id: string) => `/api/runs/${id}/task`,
 };

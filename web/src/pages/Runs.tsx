@@ -34,7 +34,7 @@ export default function Runs() {
 
   useEffect(() => {
     api.config().then((c) => {
-      setModels(`create ${c.create_model} · solve ${c.solve_model}`);
+      setModels(`create ${c.create_model} · Oddish run ${c.oddish_agent} / ${c.oddish_model}`);
       setExamples(c.examples);
       setConfigured(c.configured);
     });
