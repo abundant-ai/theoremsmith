@@ -28,14 +28,26 @@ def test_submit_returns_the_public_link(monkeypatch):
         "experiment": "demo",
         "experiment_url": "https://oddish.app/experiments/demo",
         "public_experiment_url": "https://oddish.app/share/tok123",
+        "tasks": [{"id": "t_demo", "trials_count": 1}],
     }), stderr="starting daytona\n")
     seen = []
     info = oddish.submit(_cfg(), Path("/task"), seen.append)
     assert info["public_url"] == "https://oddish.app/share/tok123"
     assert info["experiment"] == "demo"
+    assert info["task_id"] == "t_demo"
     assert info["agent"] == "claude-code"
     assert info["model"] == "glm-5.2"
     assert any("starting daytona" in line for line in seen)
+
+
+def test_clean_line_strips_rich_markup():
+    assert oddish.clean_line("[dim]$0.01 · 12 tokens[/dim]") == "$0.01 · 12 tokens"
+    assert oddish.clean_line("[bold red]Trial x not found[/bold red]") == "Trial x not found"
+    assert oddish.clean_line("plain text   ") == "plain text"
+
+
+def test_logs_command_follows_the_trial():
+    assert oddish.logs_command(_cfg(), "t_demo-0") == ["oddish", "logs", "t_demo-0", "--follow"]
 
 
 def test_submit_builds_the_expected_command(monkeypatch):

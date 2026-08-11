@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import re
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
@@ -184,6 +185,50 @@ async def run_events(run_id: str, after: int = 0) -> StreamingResponse:
                     return
         finally:
             events.unsubscribe(run_id, queue)
+
+    return StreamingResponse(gen(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+def _sse(obj: dict) -> str:
+    return f"data: {json.dumps(obj)}\n\n"
+
+
+@app.get("/api/runs/{run_id}/solve/events")
+async def solve_events(run_id: str) -> StreamingResponse:
+    run = store.read(run_id)
+    if not run:
+        raise HTTPException(404, "no such run")
+    info = (run.get("result") or {}).get("oddish") or {}
+    task_id = info.get("task_id")
+    if not task_id:
+        raise HTTPException(409, "this run has not been sent to Oddish")
+    if not oddish.available(cfg):
+        raise HTTPException(503, f"the `{cfg.oddish_bin}` CLI is not on the server's PATH")
+
+    async def gen():
+        yield _sse({"text": f"following {info.get('agent')} / {info.get('model')} on Oddish…"})
+        streamed = False
+        # Trials are `<task>-<index>`; a single-trial submit is index 0 (1 as a fallback).
+        for trial in (f"{task_id}-0", f"{task_id}-1"):
+            proc = await asyncio.create_subprocess_exec(
+                *oddish.logs_command(cfg, trial),
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+            try:
+                async for raw in proc.stdout:
+                    text = oddish.clean_line(raw.decode("utf-8", "replace"))
+                    if "not found" in text.lower():
+                        break
+                    streamed = True
+                    if text:
+                        yield _sse({"text": text})
+            finally:
+                if proc.returncode is None:
+                    proc.terminate()
+                    await proc.wait()
+            if streamed:
+                break
+        yield _sse({"done": True})
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

@@ -15,6 +15,7 @@ import Typography from "@mui/material/Typography";
 import { api, type Config, type OddishRun, type StageState } from "../api";
 import LogPane from "../components/LogPane";
 import ModelPane from "../components/ModelPane";
+import SolvePane from "../components/SolvePane";
 import Stages from "../components/Stages";
 import StatusChip from "../components/StatusChip";
 import { monoFont } from "../theme";
@@ -166,9 +167,15 @@ export default function RunView() {
       <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="caption" sx={{ display: "block", mb: 0.75 }}>
-            model
+            {oddish
+              ? `Oddish solver · ${oddish.agent ?? cfg?.oddish_agent} / ${oddish.model ?? cfg?.oddish_model}`
+              : "model"}
           </Typography>
-          <ModelPane model={model} phase={phase} height={360} />
+          {oddish ? (
+            <SolvePane runId={id} height={360} />
+          ) : (
+            <ModelPane model={model} phase={phase} height={360} />
+          )}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="caption" sx={{ display: "block", mb: 0.75 }}>

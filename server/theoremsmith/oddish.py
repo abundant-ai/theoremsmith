@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Callable
 
 from .config import Config
+
+_MARKUP = re.compile(r"\[/?[a-z][a-z0-9 =#._-]*\]")
 
 
 class OddishError(RuntimeError):
@@ -15,6 +18,15 @@ class OddishError(RuntimeError):
 
 def available(cfg: Config) -> bool:
     return shutil.which(cfg.oddish_bin) is not None
+
+
+def clean_line(line: str) -> str:
+    """Strip Rich console markup (e.g. `[dim]…[/dim]`) from an `oddish logs` line."""
+    return _MARKUP.sub("", line).rstrip()
+
+
+def logs_command(cfg: Config, trial_id: str) -> list[str]:
+    return [cfg.oddish_bin, "logs", trial_id, "--follow"]
 
 
 def _command(cfg: Config, task_dir: Path) -> list[str]:
@@ -54,10 +66,12 @@ def submit(cfg: Config, task_dir: Path, on_log: Callable[[str], None] = lambda _
     if not public:
         raise OddishError("oddish accepted the task but returned no public link "
                           "(is publishing enabled for your account?)")
+    tasks = data.get("tasks") or []
     return {
         "public_url": public,
         "experiment_url": data.get("experiment_url"),
         "experiment": data.get("experiment"),
+        "task_id": tasks[0].get("id") if tasks else None,
         "agent": cfg.oddish_agent,
         "model": cfg.oddish_model,
     }

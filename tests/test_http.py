@@ -279,3 +279,24 @@ def test_submit_surfaces_an_oddish_failure_as_502(client, monkeypatch):
 def test_submit_404s_for_an_unknown_run(client):
     c, _ = client
     assert c.post("/api/runs/nope/submit").status_code == 404
+
+
+def test_solve_events_404s_for_an_unknown_run(client):
+    c, _ = client
+    assert c.get("/api/runs/nope/solve/events").status_code == 404
+
+
+def test_solve_events_409_before_a_run_is_sent_to_oddish(client):
+    c, module = client
+    rid = _finished_run(module)  # done + verified, but never submitted
+    assert c.get(f"/api/runs/{rid}/solve/events").status_code == 409
+
+
+def test_solve_events_503_without_the_oddish_cli(client, monkeypatch):
+    c, module = client
+    rid = _finished_run(module)
+    run = module.store.read(rid)
+    run["result"]["oddish"] = {"task_id": "t_demo", "agent": "claude-code", "model": "glm-5.2"}
+    module.store.write(run)
+    monkeypatch.setattr(module.oddish, "available", lambda _cfg: False)
+    assert c.get(f"/api/runs/{rid}/solve/events").status_code == 503
