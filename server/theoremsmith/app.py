@@ -64,6 +64,7 @@ def config() -> dict:
             "configured": bool(cfg.api_key), "max_runs": cfg.max_runs,
             "examples": cfg.examples,
             "oddish_agent": cfg.oddish_agent, "oddish_model": cfg.oddish_model,
+            "oddish_timeout": cfg.oddish_timeout,
             "oddish_available": oddish.available(cfg)}
 
 

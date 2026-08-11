@@ -39,7 +39,7 @@ export default function RunView() {
   const result = run.result;
   const oddish = submitted ?? result?.oddish;
   const canSubmit = run.status === "done" && result?.verified === true;
-  const minutes = 30;
+  const minutes = Math.round((cfg?.oddish_timeout ?? 1800) / 60);
   const oddishState: StageState = oddish
     ? "done"
     : busy
@@ -203,7 +203,8 @@ export default function RunView() {
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
             Oddish packages this task and runs it with{" "}
-            <b>{cfg?.oddish_agent ?? "claude-code"}</b> on <b>{cfg?.oddish_model ?? "glm-5.2"}</b>, with
+            <b>{cfg?.oddish_agent ?? "claude-code"}</b> on{" "}
+            <b>{cfg?.oddish_model ?? "claude-haiku-4-5"}</b>, with
             a {minutes}-minute limit. It uses your Oddish account and returns a public link where you
             can watch the attempt live.
           </Typography>

@@ -23,7 +23,8 @@ def test_config_reports_the_model_and_whether_a_key_is_set(client):
     assert body["max_runs"] == 1
     assert body["create_model"]
     assert body["oddish_agent"] == "claude-code"
-    assert body["oddish_model"] == "glm-5.2"
+    assert body["oddish_model"] == "claude-haiku-4-5"
+    assert body["oddish_timeout"] == 1800
     assert "oddish_available" in body
     assert any(e["repo"] == "stepchowfun/proofs" for e in body["examples"])
 
@@ -265,7 +266,7 @@ def _finished_run(module, verified=True):
 def test_submit_sends_a_verified_run_to_oddish_and_stores_the_link(client, monkeypatch):
     c, module = client
     rid = _finished_run(module)
-    info = {"public_url": "https://oddish.app/share/tok", "agent": "claude-code", "model": "glm-5.2"}
+    info = {"public_url": "https://oddish.app/share/tok", "agent": "claude-code", "model": "claude-haiku-4-5"}
     monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
     monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest: dest)
     monkeypatch.setattr(module.oddish, "submit", lambda cfg, packed, log: info)
@@ -324,7 +325,7 @@ def test_solve_events_503_without_the_oddish_cli(client, monkeypatch):
     c, module = client
     rid = _finished_run(module)
     run = module.store.read(rid)
-    run["result"]["oddish"] = {"task_id": "t_demo", "agent": "claude-code", "model": "glm-5.2"}
+    run["result"]["oddish"] = {"task_id": "t_demo", "agent": "claude-code", "model": "claude-haiku-4-5"}
     module.store.write(run)
     monkeypatch.setattr(module.oddish, "available", lambda _cfg: False)
     assert c.get(f"/api/runs/{rid}/solve/events").status_code == 503

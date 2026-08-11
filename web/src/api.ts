@@ -64,6 +64,7 @@ export type Config = {
   examples: Example[];
   oddish_agent: string;
   oddish_model: string;
+  oddish_timeout: number;
   oddish_available: boolean;
 };
 

@@ -36,10 +36,10 @@ Harbor task (a `Dockerfile` that pins the repo's Lean toolchain and pre-builds i
 and a verifier that runs the shipped grader) and hands it to the [Oddish](https://oddish.app) CLI:
 
 ```
-oddish run <task> -a claude-code -m glm-5.2 --publish --background --json
+oddish run <task> -a claude-code -m claude-haiku-4-5 --publish --background --json
 ```
 
-Oddish runs it with Claude Code on glm-5.2 under a 30-minute limit and returns a public link where
+Oddish runs it with Claude Code on claude-haiku-4-5 under a 30-minute limit and returns a public link where
 you watch the attempt live. This needs the `oddish` CLI installed and signed in on the server; the
 button is disabled otherwise.
 
@@ -49,7 +49,7 @@ button is disabled otherwise.
 | `THEOREMSMITH_BASE_URL` | `https://openrouter.ai/api/v1` |
 | `THEOREMSMITH_CREATE_MODEL` | `moonshotai/kimi-k2.7-code` |
 | `THEOREMSMITH_ODDISH_AGENT` | `claude-code` |
-| `THEOREMSMITH_ODDISH_MODEL` | `glm-5.2` |
+| `THEOREMSMITH_ODDISH_MODEL` | `claude-haiku-4-5` |
 | `THEOREMSMITH_ODDISH_TIMEOUT` | `1800` seconds (the agent's limit on Oddish) |
 | `THEOREMSMITH_ODDISH_ENV` | — (Oddish picks; e.g. `daytona`) |
 | `THEOREMSMITH_MAX_RUNS` | `2` |
