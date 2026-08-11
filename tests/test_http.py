@@ -78,6 +78,40 @@ def test_scan_surfaces_a_clone_failure_as_422(client, monkeypatch):
     assert "clone failed" in r.json()["detail"]
 
 
+def test_scan_serves_a_cached_result_without_recloning(client, monkeypatch):
+    c, module = client
+    from theoremsmith import scan
+
+    scan.write_cache(module.cfg, "owner/name", [scan.Option("N.thm", "N/A.lean", "cached gloss")])
+
+    def fail(*a, **k):
+        raise AssertionError("should not reclone when a cache exists")
+
+    monkeypatch.setattr(module, "_scan", fail)
+    body = c.post("/api/scan", json={"repo": "owner/name"}).json()
+    assert body["cached"] is True
+    assert body["options"] == [{"name": "N.thm", "file": "N/A.lean", "gloss": "cached gloss"}]
+
+
+def test_scan_writes_a_cache_for_next_time(client, monkeypatch):
+    c, module = client
+    from theoremsmith import scan
+
+    monkeypatch.setattr(module, "_scan",
+                        lambda repo, sha: [scan.Option("N.thm", "N/A.lean", "fresh")])
+    body = c.post("/api/scan", json={"repo": "owner/fresh"}).json()
+    assert body["cached"] is False
+    assert scan.read_cache(module.cfg, "owner/fresh")[0].gloss == "fresh"
+
+
+def test_prebuild_starts_warming_the_examples(client, monkeypatch):
+    c, module = client
+    monkeypatch.setattr(module, "_prewarm_examples", lambda: None)
+    body = c.post("/api/scan/prebuild").json()
+    assert body["warming"] is True
+    assert "stepchowfun/proofs" in body["cached"]
+
+
 def test_the_run_cap_is_enforced(client):
     c, _ = client
     assert c.post("/api/runs", json={"repo": "owner/one"}).status_code == 200

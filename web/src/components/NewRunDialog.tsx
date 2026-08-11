@@ -137,10 +137,17 @@ export default function NewRunDialog({
               onChange={(e) => setSha(e.target.value)}
               disabled={phase === "scanning"}
             />
+            <Typography variant="caption" color="text.secondary">
+              Scanning clones the repository and reads every theorem in it. For a repository that
+              hasn't been scanned before this can take many minutes. The examples above are
+              pre-scanned and open instantly.
+            </Typography>
             {phase === "scanning" && (
               <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
                 <CircularProgress size={14} thickness={6} sx={{ color: "text.primary" }} />
-                <Typography variant="caption">reading {repo} and choosing theorems…</Typography>
+                <Typography variant="caption">
+                  reading {repo} and choosing theorems — this can take many minutes…
+                </Typography>
               </Stack>
             )}
             {error && (

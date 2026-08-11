@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -219,3 +221,31 @@ def scan_repo(cfg: Config, repo: str, source: Path, count: int = 10,
     if not cands:
         return []
     return curate(cfg, repo, cands, count, on_delta)
+
+
+# A scan clones the repository and asks the create model to choose and describe theorems, which
+# takes minutes. The result for a default-branch scan is cached so the demo repos come back instantly.
+def _cache_file(cfg: Config, repo: str) -> Path:
+    slug = re.sub(r"[^a-z0-9]+", "-", repo.lower()).strip("-") or "repo"
+    return cfg.data_dir / "scan-cache" / f"{slug}.json"
+
+
+def read_cache(cfg: Config, repo: str) -> list[Option] | None:
+    try:
+        data = json.loads(_cache_file(cfg, repo).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    opts = [Option(name=o["name"], file=o["file"], gloss=o.get("gloss", ""))
+            for o in data.get("options", []) if o.get("name") and o.get("file")]
+    return opts or None
+
+
+def write_cache(cfg: Config, repo: str, options: list[Option]) -> None:
+    if not options:
+        return
+    path = _cache_file(cfg, repo)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"repo": repo, "options": [o.__dict__ for o in options]}, indent=2),
+                   encoding="utf-8")
+    os.replace(tmp, path)

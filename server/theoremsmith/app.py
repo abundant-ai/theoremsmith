@@ -7,7 +7,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -31,6 +31,8 @@ admission = Lock()
 async def lifespan(_: FastAPI):
     events.bind_loop(asyncio.get_running_loop())
     store.fail_orphans()
+    if cfg.api_key:
+        Thread(target=_prewarm_examples, daemon=True).start()
     yield
     pool.shutdown(wait=False, cancel_futures=True)
 
@@ -69,22 +71,54 @@ class ScanRequest(BaseModel):
     sha: str = ""
 
 
+def _scan(repo: str, sha: str) -> list[scan.Option]:
+    work = Path(tempfile.mkdtemp(prefix="theoremsmith-scan-", dir=cfg.data_dir))
+    try:
+        lean.clone(f"https://github.com/{repo}", sha, work / "src", lambda _l: None,
+                   cfg.clone_timeout, shallow=True)
+        return scan.scan_repo(cfg, repo, work / "src")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _prewarm_examples() -> None:
+    for ex in cfg.examples:
+        repo = ex.get("repo", "")
+        if not REPO_RE.match(repo) or scan.read_cache(cfg, repo) is not None:
+            continue
+        try:
+            scan.write_cache(cfg, repo, _scan(repo, ""))
+        except Exception:
+            continue
+
+
 @app.post("/api/scan")
 def scan_repo(body: ScanRequest) -> dict:
     if not cfg.api_key:
         raise HTTPException(400, "no API key is set on the server")
     repo = _repo(body.repo)
-    url = f"https://github.com/{repo}"
-    work = Path(tempfile.mkdtemp(prefix="theoremsmith-scan-", dir=cfg.data_dir))
+    sha = body.sha.strip()
+    if not sha:
+        cached = scan.read_cache(cfg, repo)
+        if cached is not None:
+            return {"repo": repo, "cached": True, "options": [o.__dict__ for o in cached]}
     try:
-        lean.clone(url, body.sha.strip(), work / "src", lambda _l: None, cfg.clone_timeout,
-                   shallow=True)
-        options = scan.scan_repo(cfg, repo, work / "src")
+        options = _scan(repo, sha)
     except (lean.LeanError, scan.llm.LlmError) as exc:
         raise HTTPException(422, str(exc)[:300]) from exc
-    finally:
-        shutil.rmtree(work, ignore_errors=True)
-    return {"repo": repo, "options": [o.__dict__ for o in options]}
+    if not sha:
+        scan.write_cache(cfg, repo, options)
+    return {"repo": repo, "cached": False, "options": [o.__dict__ for o in options]}
+
+
+@app.post("/api/scan/prebuild")
+def prebuild_examples() -> dict:
+    if not cfg.api_key:
+        raise HTTPException(400, "no API key is set on the server")
+    Thread(target=_prewarm_examples, daemon=True).start()
+    return {"warming": True,
+            "cached": {ex["repo"]: scan.read_cache(cfg, ex["repo"]) is not None
+                       for ex in cfg.examples if ex.get("repo")}}
 
 
 @app.get("/api/runs")

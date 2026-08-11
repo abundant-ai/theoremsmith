@@ -12,7 +12,7 @@ import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 
-import { api, type Config, type OddishRun } from "../api";
+import { api, type Config, type OddishRun, type StageState } from "../api";
 import LogPane from "../components/LogPane";
 import ModelPane from "../components/ModelPane";
 import Stages from "../components/Stages";
@@ -39,6 +39,13 @@ export default function RunView() {
   const oddish = submitted ?? result?.oddish;
   const canSubmit = run.status === "done" && result?.verified === true;
   const minutes = 30;
+  const oddishState: StageState = oddish
+    ? "done"
+    : busy
+      ? "running"
+      : submitError
+        ? "failed"
+        : "pending";
 
   async function submit() {
     setBusy(true);
@@ -95,7 +102,7 @@ export default function RunView() {
         </Stack>
       </Stack>
 
-      <Stages stages={run.stages} />
+      <Stages stages={run.stages} oddish={run.status === "done" ? oddishState : undefined} />
 
       {oddish && (
         <Alert severity="success" variant="outlined" sx={{ borderRadius: 1, fontSize: 13 }}>

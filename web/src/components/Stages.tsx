@@ -21,16 +21,28 @@ function Mark({ state }: { state: StageState }) {
   return <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: color }} />;
 }
 
-export default function Stages({ stages }: { stages: Record<string, StageState> }) {
+export default function Stages({
+  stages,
+  oddish,
+}: {
+  stages: Record<string, StageState>;
+  oddish?: StageState;
+}) {
+  const items: { key: string; label: string; state: StageState }[] = STAGES.map((name) => ({
+    key: name,
+    label: LABEL[name],
+    state: stages[name] ?? "pending",
+  }));
+  if (oddish) items.push({ key: "oddish", label: "Run on Oddish", state: oddish });
   return (
     <Stack
       direction="row"
       spacing={0}
       sx={{ border: 1, borderColor: "divider" }}
     >
-      {STAGES.map((name, i) => (
+      {items.map((item, i) => (
         <Stack
-          key={name}
+          key={item.key}
           direction="row"
           spacing={1}
           sx={{
@@ -40,12 +52,12 @@ export default function Stages({ stages }: { stages: Record<string, StageState> 
             py: 1.25,
             borderLeft: i === 0 ? 0 : 1,
             borderColor: "divider",
-            opacity: stages[name] === "pending" ? 0.45 : 1,
+            opacity: item.state === "pending" ? 0.45 : 1,
           }}
         >
-          <Mark state={stages[name] ?? "pending"} />
+          <Mark state={item.state} />
           <Typography variant="caption" noWrap sx={{ color: "text.primary" }}>
-            {LABEL[name]}
+            {item.label}
           </Typography>
         </Stack>
       ))}
