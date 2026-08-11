@@ -63,6 +63,7 @@ tags = ["formal-verification", "lean4"]
 description = "{description}"
 source_repo = "{repo}"
 source_sha = "{sha}"
+open_internet_justification = "Setup and verification install the pinned Lean toolchain and build the package from public sources; the agent phase is no-network, so the upstream repository and its proofs are unreachable while solving."
 
 [verifier]
 timeout_sec = {verifier_timeout}.0

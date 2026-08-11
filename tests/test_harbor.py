@@ -66,6 +66,17 @@ def test_task_toml_carries_the_thirty_minute_agent_limit_and_network_modes(tmp_p
     assert 'source_repo = "owner/name"' in toml
 
 
+def test_task_toml_justifies_open_internet_for_the_preflight(tmp_path):
+    # Oddish's closed_internet preflight rejects a public phase without a written
+    # justification of at least 20 characters; the agent phase stays no-network.
+    dest = harbor.pack(_cfg(tmp_path), _task(tmp_path), tmp_path / "out")
+    toml = (dest / "task.toml").read_text()
+    marker = "open_internet_justification = "
+    assert marker in toml
+    value = toml.split(marker, 1)[1].split("\n", 1)[0].strip().strip('"')
+    assert len(value) >= 20
+
+
 def test_test_sh_reconstructs_the_tree_the_grader_expects(tmp_path):
     dest = harbor.pack(_cfg(tmp_path), _task(tmp_path), tmp_path / "out")
     body = (dest / "tests" / "test.sh").read_text()
