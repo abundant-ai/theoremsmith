@@ -12,8 +12,8 @@ _SECTION = re.compile(r"^\s*section\b")
 _END = re.compile(r"^\s*end\b\s*(\S*)\s*$")
 _DECL = re.compile(
     r"^\s*(?:@\[[^\]]*\]\s*)*"
-    r"(?:(?:private|protected|noncomputable|nonrec|scoped|local|unsafe|partial)\s+)*"
-    r"(?:theorem|lemma)\s+([^\s:({\[⦃⟨]+)"
+    r"(?P<mods>(?:(?:private|protected|noncomputable|nonrec|scoped|local|unsafe|partial)\s+)*)"
+    r"(?:theorem|lemma)\s+(?P<name>[^\s:({\[⦃⟨]+)"
 )
 _STRUCTURAL = re.compile(r"^\s*(namespace|section|end|theorem|lemma|def|instance|structure|inductive|class|abbrev|example)\b")
 _DOC = re.compile(r"/--(.*?)-/", re.S)
@@ -80,6 +80,7 @@ class Candidate:
     doc: str
     proof_lines: int
     has_sorry: bool = False
+    is_private: bool = False
 
 
 def _docs_by_end_line(text: str) -> dict[int, str]:
@@ -127,14 +128,17 @@ def enumerate_file(rel: str, text: str) -> list[Candidate]:
         cut = re.search(r":=|\bby\b", mblock)
         sig = block[: cut.start()] if cut else block
         proof = mblock[cut.end() :] if cut else ""
+        raw_name = m.group("name")
+        name = raw_name[len("_root_.") :] if raw_name.startswith("_root_.") else ".".join([*ns, raw_name])
         out.append(Candidate(
-            name=".".join([*ns, m.group(1)]),
+            name=name,
             file=rel,
             line=idx + 1,
             signature=" ".join(sig.split())[:400],
             doc=docs.get(idx, ""),
             proof_lines=sum(1 for ln in raw[idx:end] if ln.strip()),
             has_sorry=bool(re.search(r"\b(sorry|sorryAx|admit)\b", proof)),
+            is_private="private" in m.group("mods"),
         ))
     return out
 
@@ -156,7 +160,7 @@ def shortlist(cands: list[Candidate], limit: int = 40) -> list[Candidate]:
     seen: set[str] = set()
     keep: list[Candidate] = []
     for c in sorted(cands, key=lambda c: c.proof_lines, reverse=True):
-        if c.proof_lines < 2 or c.name in seen or c.has_sorry:
+        if c.proof_lines < 2 or c.name in seen or c.has_sorry or c.is_private:
             continue
         seen.add(c.name)
         keep.append(c)

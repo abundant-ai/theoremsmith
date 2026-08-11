@@ -99,6 +99,29 @@ def test_shortlist_drops_unproved_theorems():
     assert kept == {"real", "sorry_in_comment"}
 
 
+def test_private_theorems_are_flagged_and_dropped():
+    text = (
+        "namespace N\n"
+        "private theorem helper (n : Nat) : n = n := by\n  rfl\n  rfl\n"
+        "theorem public_one (n : Nat) : n = n := by\n  rfl\n  rfl\n"
+        "end N\n"
+    )
+    cands = {c.name: c for c in scan.enumerate_file("A.lean", text)}
+    assert cands["N.helper"].is_private is True
+    assert cands["N.public_one"].is_private is False
+    assert {c.name for c in scan.shortlist(list(cands.values()))} == {"N.public_one"}
+
+
+def test_root_escape_drops_the_surrounding_namespace():
+    text = (
+        "namespace N\n"
+        "theorem _root_.ByteArray.zerosSize (a : Nat) : a = a := by\n  rfl\n  rfl\n"
+        "end N\n"
+    )
+    names = {c.name for c in scan.enumerate_file("A.lean", text)}
+    assert names == {"ByteArray.zerosSize"}
+
+
 def test_comment_masking_ignores_a_theorem_inside_a_block_comment():
     text = "namespace N\n/- theorem hidden : True := trivial -/\ntheorem real : True := by trivial\nend N\n"
     names = {c.name for c in scan.enumerate_file("C.lean", text)}
