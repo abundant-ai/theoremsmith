@@ -249,28 +249,28 @@ async def solve_events(run_id: str) -> StreamingResponse:
     if not oddish.available(cfg):
         raise HTTPException(503, f"the `{cfg.oddish_bin}` CLI is not on the server's PATH")
 
+    # Prefer the trial resolved at submit; fall back to the newest, then index 0.
+    trial_id = (info.get("trial_id")
+                or oddish.resolve_trial(cfg, task_id)
+                or f"{task_id}-0")
+
     async def gen():
-        yield _sse({"text": f"following {info.get('agent')} / {info.get('model')} on Oddish…"})
-        streamed = False
-        # Trials are `<task>-<index>`; a single-trial submit is index 0 (1 as a fallback).
-        for trial in (f"{task_id}-0", f"{task_id}-1"):
-            proc = await asyncio.create_subprocess_exec(
-                *oddish.logs_command(cfg, trial),
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
-            try:
-                async for raw in proc.stdout:
-                    text = oddish.clean_line(raw.decode("utf-8", "replace"))
-                    if "not found" in text.lower():
-                        break
-                    streamed = True
-                    if text:
-                        yield _sse({"text": text})
-            finally:
-                if proc.returncode is None:
-                    proc.terminate()
-                    await proc.wait()
-            if streamed:
-                break
+        yield _sse({"text": f"following {info.get('agent')} / {info.get('model')} "
+                            f"on Oddish (trial {trial_id})…"})
+        proc = await asyncio.create_subprocess_exec(
+            *oddish.logs_command(cfg, trial_id),
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+        try:
+            async for raw in proc.stdout:
+                text = oddish.clean_line(raw.decode("utf-8", "replace"))
+                low = text.lower()
+                if not text or "no live events" in low or "not found" in low:
+                    continue
+                yield _sse({"text": text})
+        finally:
+            if proc.returncode is None:
+                proc.terminate()
+                await proc.wait()
         yield _sse({"done": True})
 
     return StreamingResponse(gen(), media_type="text/event-stream",

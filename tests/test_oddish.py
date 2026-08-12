@@ -16,6 +16,8 @@ def _cfg(**over) -> Config:
 
 def _fake_run(monkeypatch, *, returncode=0, stdout="", stderr="", capture=None):
     def run(cmd, **kwargs):
+        if "logs" in cmd:  # a resolve_trial probe
+            return subprocess.CompletedProcess(cmd, 1, stdout="Trial not found", stderr="")
         if capture is not None:
             capture.extend(cmd)
         return subprocess.CompletedProcess(cmd, returncode, stdout=stdout, stderr=stderr)
@@ -30,14 +32,34 @@ def test_submit_returns_the_public_link(monkeypatch):
         "public_experiment_url": "https://oddish.app/share/tok123",
         "tasks": [{"id": "t_demo", "trials_count": 1}],
     }), stderr="starting daytona\n")
+    monkeypatch.setattr(oddish, "resolve_trial", lambda cfg, tid: f"{tid}-0")
     seen = []
     info = oddish.submit(_cfg(), Path("/task"), seen.append)
     assert info["public_url"] == "https://oddish.app/share/tok123"
     assert info["experiment"] == "demo"
     assert info["task_id"] == "t_demo"
+    assert info["trial_id"] == "t_demo-0"
     assert info["agent"] == "claude-code"
     assert info["model"] == "claude-haiku-4-5"
     assert any("starting daytona" in line for line in seen)
+
+
+def test_extract_json_ignores_surrounding_text():
+    raw = ('Submitting task...\nuploading\n'
+           '{"public_experiment_url": "u", "tasks": [{"id": "t-0"}]}\n'
+           'Running in background.')
+    d = oddish._extract_json(raw)
+    assert d["public_experiment_url"] == "u"
+    assert d["tasks"][0]["id"] == "t-0"
+
+
+def test_resolve_trial_picks_the_newest(monkeypatch):
+    def run(cmd, **kwargs):
+        trial = cmd[2]  # ["oddish", "logs", "<trial>"]
+        out = "Trial not found" if trial.endswith("-2") else "No live events"
+        return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+    monkeypatch.setattr(oddish.subprocess, "run", run)
+    assert oddish.resolve_trial(_cfg(), "task") == "task-1"
 
 
 def test_clean_line_strips_rich_markup():
