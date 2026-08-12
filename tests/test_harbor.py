@@ -85,3 +85,16 @@ def test_test_sh_reconstructs_the_tree_the_grader_expects(tmp_path):
     assert "/app/answers" in body
     assert "run_test.sh" in body
     assert "/logs/verifier/reward.txt" in body
+
+
+def test_a_nonce_makes_each_submit_a_distinct_task(tmp_path):
+    # Oddish content-addresses the task id, so two submits of the same repo must
+    # differ or the second inherits the first's (maybe cancelled) task.
+    task = _task(tmp_path)
+    a = (harbor.pack(_cfg(tmp_path), task, tmp_path / "a", nonce="run-aaa")
+         / "task.toml").read_text()
+    b = (harbor.pack(_cfg(tmp_path), task, tmp_path / "b", nonce="run-bbb")
+         / "task.toml").read_text()
+    assert 'run_nonce = "run-aaa"' in a
+    assert 'run_nonce = "run-bbb"' in b
+    assert a != b

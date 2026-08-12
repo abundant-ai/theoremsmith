@@ -268,7 +268,7 @@ def test_submit_sends_a_verified_run_to_oddish_and_stores_the_link(client, monke
     rid = _finished_run(module)
     info = {"public_url": "https://oddish.app/share/tok", "agent": "claude-code", "model": "claude-haiku-4-5"}
     monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
-    monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest: dest)
+    monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest, nonce="": dest)
     monkeypatch.setattr(module.oddish, "submit", lambda cfg, packed, log: info)
 
     body = c.post(f"/api/runs/{rid}/submit").json()
@@ -294,7 +294,7 @@ def test_submit_surfaces_an_oddish_failure_as_502(client, monkeypatch):
     c, module = client
     rid = _finished_run(module)
     monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
-    monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest: dest)
+    monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest, nonce="": dest)
 
     def boom(cfg, packed, log):
         raise module.oddish.OddishError("publishing is disabled")

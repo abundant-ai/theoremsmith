@@ -63,6 +63,7 @@ tags = ["formal-verification", "lean4"]
 description = "{description}"
 source_repo = "{repo}"
 source_sha = "{sha}"
+run_nonce = "{nonce}"
 open_internet_justification = "Setup and verification install the pinned Lean toolchain and build the package from public sources; the agent phase is no-network, so the upstream repository and its proofs are unreachable while solving."
 
 [verifier]
@@ -87,11 +88,14 @@ def _toml_str(text: str, limit: int = 200) -> str:
     return re.sub(r"\s+", " ", text or "").replace('"', "'").replace("\\", "/").strip()[:limit]
 
 
-def pack(cfg: Config, task_dir: Path, dest: Path) -> Path:
+def pack(cfg: Config, task_dir: Path, dest: Path, *, nonce: str = "") -> Path:
     """Assemble a Harbor/oddish-runnable task from a finished run's task directory.
 
     The emitted theoremsmith format is left untouched; this reshapes a copy of it
-    into `dest`, which `oddish run` accepts.
+    into `dest`, which `oddish run` accepts. `nonce` is written into task.toml so
+    each submit is a distinct Oddish task (Oddish content-addresses the task id, so
+    identical content would otherwise collide with — and inherit the fate of — a
+    previous submit's task, e.g. one that was cancelled).
     """
     meta = json.loads((task_dir / "task.json").read_text(encoding="utf-8"))
     if dest.exists():
@@ -119,6 +123,7 @@ def pack(cfg: Config, task_dir: Path, dest: Path) -> Path:
             description=description,
             repo=_toml_str(meta.get("repo", ""), 120),
             sha=_toml_str(meta.get("sha", ""), 60),
+            nonce=_toml_str(nonce, 64),
             verifier_timeout=cfg.build_timeout,
             agent_timeout=cfg.oddish_timeout,
             build_timeout=cfg.build_timeout,

@@ -20,7 +20,7 @@ import tempfile
 
 from . import events, harbor, lean, oddish, pipeline, scan
 from .config import Config
-from .store import Store
+from .store import Store, new_id
 
 cfg = Config.load()
 store = Store(cfg.data_dir)
@@ -313,9 +313,14 @@ def submit_to_oddish(run_id: str) -> dict:
     log = lambda line: events.emit(run_id, "log", text=str(line)[:2000], level="info")
     events.emit(run_id, "log", text=f"submitting to Oddish: {cfg.oddish_agent} / "
                 f"{cfg.oddish_model}, {cfg.oddish_timeout // 60}-minute limit", level="info")
-    packed = store.dir(run_id) / "oddish"
+    # Oddish derives the task id from the packed dir name + content hash, so give
+    # each submit a unique name and nonce — otherwise it collides with a prior
+    # submit's task (and inherits its state, e.g. a cancelled task's dead S3 data).
+    slug = (run.get("result") or {}).get("slug") or "theoremsmith"
+    nonce = new_id()
+    packed = store.dir(run_id) / f"{slug}-{nonce[:8]}"
     try:
-        harbor.pack(cfg, task_dir, packed)
+        harbor.pack(cfg, task_dir, packed, nonce=nonce)
         info = oddish.submit(cfg, packed, log)
     except oddish.OddishError as exc:
         events.emit(run_id, "log", text=f"Oddish submit failed: {exc}", level="error")
