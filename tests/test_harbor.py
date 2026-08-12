@@ -87,6 +87,17 @@ def test_test_sh_reconstructs_the_tree_the_grader_expects(tmp_path):
     assert "/logs/verifier/reward.txt" in body
 
 
+def test_pack_dereferences_symlinks_oddish_rejects(tmp_path):
+    # A repo can carry a symlink (e.g. stepchowfun/proofs' _CoqProject -> _RocqProject).
+    # Oddish's task upload refuses links ("links not allowed"), so the pack must not keep any.
+    task = _task(tmp_path)
+    (task / "environment" / "_RocqProject").write_text("real project")
+    (task / "environment" / "_CoqProject").symlink_to("_RocqProject")
+    dest = harbor.pack(_cfg(tmp_path), task, tmp_path / "out")
+    assert [p for p in dest.rglob("*") if p.is_symlink()] == []
+    assert (dest / "environment" / "repo" / "_CoqProject").read_text() == "real project"
+
+
 def test_a_nonce_makes_each_submit_a_distinct_task(tmp_path):
     # Oddish content-addresses the task id, so two submits of the same repo must
     # differ or the second inherits the first's (maybe cancelled) task.

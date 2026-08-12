@@ -88,6 +88,26 @@ def _toml_str(text: str, limit: int = 200) -> str:
     return re.sub(r"\s+", " ", text or "").replace('"', "'").replace("\\", "/").strip()[:limit]
 
 
+def _dereference(root: Path) -> None:
+    """Replace every symlink under `root` with its target's bytes.
+
+    A repo may ship a symlink (e.g. stepchowfun/proofs' `_CoqProject -> _RocqProject`)
+    and Oddish's task upload refuses links ("links not allowed"). Reading through the
+    link and rewriting a real file keeps valid content; a broken or non-file link
+    (which would fail the build anyway) is dropped.
+    """
+    for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
+        if not path.is_symlink():
+            continue
+        try:
+            data = path.read_bytes()
+        except OSError:
+            path.unlink()
+            continue
+        path.unlink()
+        path.write_bytes(data)
+
+
 def pack(cfg: Config, task_dir: Path, dest: Path, *, nonce: str = "") -> Path:
     """Assemble a Harbor/oddish-runnable task from a finished run's task directory.
 
@@ -130,4 +150,5 @@ def pack(cfg: Config, task_dir: Path, dest: Path, *, nonce: str = "") -> Path:
         ),
         encoding="utf-8",
     )
+    _dereference(dest)
     return dest
