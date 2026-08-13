@@ -211,7 +211,7 @@ export default function RunView() {
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
             Oddish packages this task and runs it with <b>{cfg?.oddish_agent ?? "claude-code"}</b> on{" "}
-            <b>{cfg?.oddish_model ?? "openrouter/deepseek/deepseek-v4-flash"}</b>, with a {minutes}-minute
+            <b>{cfg?.oddish_model ?? "minimax-m3"}</b>, with a {minutes}-minute
             limit. It uses your Oddish account and returns a public link where you can watch the attempt
             live.
           </Typography>

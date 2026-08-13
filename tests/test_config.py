@@ -25,8 +25,8 @@ def test_a_blank_override_falls_back_to_the_default(monkeypatch):
     assert config.Config.load().examples == config.DEFAULT_EXAMPLES
 
 
-def test_the_solver_defaults_to_openrouter_deepseek(monkeypatch):
+def test_the_solver_defaults_to_minimax(monkeypatch):
     monkeypatch.delenv("THEOREMSMITH_ODDISH_MODEL", raising=False)
     cfg = config.Config.load()
     assert cfg.oddish_agent == "claude-code"
-    assert cfg.oddish_model == "openrouter/deepseek/deepseek-v4-flash"
+    assert cfg.oddish_model == "minimax-m3"
