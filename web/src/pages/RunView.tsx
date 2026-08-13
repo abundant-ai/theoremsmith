@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -8,13 +8,11 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 
-import { api, type Config, type OddishRun, type StageState } from "../api";
+import { api, type Config, type StageState } from "../api";
 import LogPane from "../components/LogPane";
 import ModelPane from "../components/ModelPane";
 import SolvePane from "../components/SolvePane";
@@ -25,34 +23,29 @@ import { useRunStream } from "../useRunStream";
 
 export default function RunView() {
   const { id = "" } = useParams();
+  const navigate = useNavigate();
   const { run, logs, model, phase, connected } = useRunStream(id);
   const [cfg, setCfg] = useState<Config | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [submitted, setSubmitted] = useState<OddishRun | undefined>();
-  const [solveModel, setSolveModel] = useState("");
 
   useEffect(() => {
-    api.config()
-      .then((c) => {
-        setCfg(c);
-        setSolveModel(c.oddish_model);
-      })
-      .catch(() => {});
+    api.config().then(setCfg).catch(() => {});
   }, []);
 
   if (!run) return <Typography variant="body2">loading</Typography>;
 
   const result = run.result;
-  const oddish = submitted ?? result?.oddish;
+  const oddish = result?.oddish;
+  const oddishError = result?.oddish_error;
   const canSubmit = run.status === "done" && result?.verified === true;
   const minutes = Math.round((cfg?.oddish_timeout ?? 1800) / 60);
   const oddishState: StageState = oddish
     ? "done"
     : busy
       ? "running"
-      : submitError
+      : submitError || oddishError
         ? "failed"
         : "pending";
 
@@ -60,8 +53,9 @@ export default function RunView() {
     setBusy(true);
     setSubmitError("");
     try {
-      setSubmitted(await api.submit(id, solveModel));
+      await api.submit(id);
       setConfirm(false);
+      navigate("/");
     } catch (e) {
       setSubmitError(String(e instanceof Error ? e.message : e));
     } finally {
@@ -126,6 +120,12 @@ export default function RunView() {
           >
             {oddish.public_url}
           </Typography>
+        </Alert>
+      )}
+
+      {!oddish && oddishError && (
+        <Alert severity="error" variant="outlined" sx={{ borderRadius: 1, fontSize: 13 }}>
+          Oddish submit failed: {oddishError}
         </Alert>
       )}
 
@@ -209,26 +209,12 @@ export default function RunView() {
       <Dialog open={confirm} onClose={() => (busy ? null : setConfirm(false))} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontSize: 15, fontWeight: 500 }}>Run this task on Oddish?</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Oddish packages this task and runs it under <b>{cfg?.oddish_agent ?? "claude-code"}</b> with
-            the solver you pick, with a {minutes}-minute limit. It uses your Oddish account and returns a
-            public link where you can watch the attempt live.
+          <Typography variant="body2" color="text.secondary">
+            Oddish packages this task and runs it with <b>{cfg?.oddish_agent ?? "claude-code"}</b> on{" "}
+            <b>{cfg?.oddish_model ?? "openrouter/deepseek/deepseek-v4-flash"}</b>, with a {minutes}-minute
+            limit. It uses your Oddish account and returns a public link where you can watch the attempt
+            live.
           </Typography>
-          <TextField
-            select
-            fullWidth
-            size="small"
-            label="Solver"
-            value={solveModel}
-            onChange={(e) => setSolveModel(e.target.value)}
-            disabled={busy}
-          >
-            {(cfg?.oddish_solvers ?? []).map((s) => (
-              <MenuItem key={s.model} value={s.model}>
-                {s.label} — {s.model}
-              </MenuItem>
-            ))}
-          </TextField>
           {submitError && (
             <Typography variant="caption" color="error" sx={{ display: "block", mt: 2 }}>
               {submitError}

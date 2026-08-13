@@ -50,19 +50,6 @@ class NewRun(BaseModel):
     goals: list[str] = []
 
 
-class SubmitReq(BaseModel):
-    model: str = ""
-
-
-def _resolve_solver(model: str) -> tuple[str, str]:
-    if not model:
-        return cfg.oddish_agent, cfg.oddish_model
-    for solver in cfg.oddish_solvers:
-        if solver.get("model") == model:
-            return solver.get("agent") or cfg.oddish_agent, model
-    raise HTTPException(400, f"unknown solver model: {model}")
-
-
 def _repo(raw: str) -> str:
     raw = raw.strip().removesuffix(".git").removesuffix("/")
     raw = re.sub(r"^https?://github\.com/", "", raw)
@@ -77,7 +64,7 @@ def config() -> dict:
             "configured": bool(cfg.api_key), "max_runs": cfg.max_runs,
             "examples": cfg.examples,
             "oddish_agent": cfg.oddish_agent, "oddish_model": cfg.oddish_model,
-            "oddish_timeout": cfg.oddish_timeout, "oddish_solvers": cfg.oddish_solvers,
+            "oddish_timeout": cfg.oddish_timeout,
             "oddish_available": oddish.available(cfg)}
 
 
@@ -310,23 +297,17 @@ def download_task(run_id: str):
                              headers={"Content-Disposition": f'attachment; filename="{run_id}-task.zip"'})
 
 
-@app.post("/api/runs/{run_id}/submit")
-def submit_to_oddish(run_id: str, body: SubmitReq | None = None) -> dict:
+def _spawn(target, *args) -> None:
+    Thread(target=target, args=args, daemon=True).start()
+
+
+def _submit_to_oddish(run_id: str) -> None:
     run = store.read(run_id)
     if not run:
-        raise HTTPException(404, "no such run")
-    if run["status"] != "done" or not (run.get("result") or {}).get("verified"):
-        raise HTTPException(409, "only a finished, verified run can be sent to Oddish")
-    task_dir = store.dir(run_id) / "task"
-    if not task_dir.exists():
-        raise HTTPException(404, "this run has no task to submit")
-    if not oddish.available(cfg):
-        raise HTTPException(503, f"the `{cfg.oddish_bin}` CLI is not on the server's PATH")
-
-    agent, model = _resolve_solver(body.model if body else "")
+        return
     log = lambda line: events.emit(run_id, "log", text=str(line)[:2000], level="info")
-    events.emit(run_id, "log", text=f"submitting to Oddish: {agent} / "
-                f"{model}, {cfg.oddish_timeout // 60}-minute limit", level="info")
+    events.emit(run_id, "log", text=f"submitting to Oddish: {cfg.oddish_agent} / "
+                f"{cfg.oddish_model}, {cfg.oddish_timeout // 60}-minute limit", level="info")
     # Oddish derives the task id from the packed dir name + content hash, so give
     # each submit a unique name and nonce — otherwise it collides with a prior
     # submit's task (and inherits its state, e.g. a cancelled task's dead S3 data).
@@ -334,22 +315,42 @@ def submit_to_oddish(run_id: str, body: SubmitReq | None = None) -> dict:
     nonce = new_id()
     packed = store.dir(run_id) / f"{slug}-{nonce[:8]}"
     try:
-        harbor.pack(cfg, task_dir, packed, nonce=nonce)
-        info = oddish.submit(cfg, packed, log, agent=agent, model=model)
-    except oddish.OddishError as exc:
+        harbor.pack(cfg, store.dir(run_id) / "task", packed, nonce=nonce)
+        info = oddish.submit(cfg, packed, log)
+    except (oddish.OddishError, OSError, ValueError) as exc:
         events.emit(run_id, "log", text=f"Oddish submit failed: {exc}", level="error")
-        raise HTTPException(502, str(exc)[:400]) from exc
-    except (OSError, ValueError) as exc:
-        events.emit(run_id, "log", text=f"could not package the task: {exc}", level="error")
-        raise HTTPException(500, f"could not package the task for Oddish: {str(exc)[:300]}") from exc
+        run = store.read(run_id) or run
+        run["result"] = {**(run["result"] or {}), "oddish_error": str(exc)[:400]}
+        store.write(run)
+        events.emit(run_id, "status", status=run.get("status"))
+        return
     finally:
         shutil.rmtree(packed, ignore_errors=True)
-
     run = store.read(run_id) or run
     run["result"] = {**(run["result"] or {}), "oddish": info}
     store.write(run)
     events.emit(run_id, "log", text=f"Oddish run: {info['public_url']}", level="info")
-    return info
+    events.emit(run_id, "status", status=run.get("status"))
+
+
+@app.post("/api/runs/{run_id}/submit")
+def submit_to_oddish(run_id: str) -> dict:
+    run = store.read(run_id)
+    if not run:
+        raise HTTPException(404, "no such run")
+    if run["status"] != "done" or not (run.get("result") or {}).get("verified"):
+        raise HTTPException(409, "only a finished, verified run can be sent to Oddish")
+    if not (store.dir(run_id) / "task").exists():
+        raise HTTPException(404, "this run has no task to submit")
+    if not oddish.available(cfg):
+        raise HTTPException(503, f"the `{cfg.oddish_bin}` CLI is not on the server's PATH")
+    if (run.get("result") or {}).get("oddish_error"):
+        run["result"].pop("oddish_error", None)
+        store.write(run)
+    # Upload to Oddish in the background so the click returns immediately; the public
+    # link lands on the run (and its live view) when the upload finishes.
+    _spawn(_submit_to_oddish, run_id)
+    return {"submitting": True}
 
 
 @app.get("/api/{rest:path}")

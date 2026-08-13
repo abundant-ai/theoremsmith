@@ -40,7 +40,7 @@ def test_submit_returns_the_public_link(monkeypatch):
     assert info["task_id"] == "t_demo"
     assert info["trial_id"] == "t_demo-0"
     assert info["agent"] == "claude-code"
-    assert info["model"] == "claude-haiku-4-5"
+    assert info["model"] == "openrouter/deepseek/deepseek-v4-flash"
     assert any("starting daytona" in line for line in seen)
 
 
@@ -78,7 +78,7 @@ def test_submit_builds_the_expected_command(monkeypatch):
         {"public_experiment_url": "https://oddish.app/share/x"}), capture=cmd)
     oddish.submit(_cfg(oddish_env="daytona"), Path("/task"))
     assert cmd[:3] == ["oddish", "run", "/task"]
-    for flag in ("-a", "claude-code", "-m", "claude-haiku-4-5", "--publish", "--background", "--json"):
+    for flag in ("-a", "claude-code", "-m", "openrouter/deepseek/deepseek-v4-flash", "--publish", "--background", "--json"):
         assert flag in cmd
     assert cmd[cmd.index("--env") + 1] == "daytona"
 

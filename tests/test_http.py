@@ -23,10 +23,9 @@ def test_config_reports_the_model_and_whether_a_key_is_set(client):
     assert body["max_runs"] == 1
     assert body["create_model"]
     assert body["oddish_agent"] == "claude-code"
-    assert body["oddish_model"] == "claude-haiku-4-5"
+    assert body["oddish_model"] == "openrouter/deepseek/deepseek-v4-flash"
+    assert body["oddish_agent"] == "claude-code"
     assert body["oddish_timeout"] == 1800
-    models = [s["model"] for s in body["oddish_solvers"]]
-    assert "claude-haiku-4-5" in models and "minimax-m3" in models
     assert "oddish_available" in body
     assert any(e["repo"] == "stepchowfun/proofs" for e in body["examples"])
 
@@ -265,17 +264,16 @@ def _finished_run(module, verified=True):
     return created["id"]
 
 
-def test_submit_sends_a_verified_run_to_oddish_and_stores_the_link(client, monkeypatch):
+def test_submit_returns_immediately_and_stores_the_link_in_the_background(client, monkeypatch):
     c, module = client
     rid = _finished_run(module)
-    info = {"public_url": "https://oddish.app/share/tok", "agent": "claude-code", "model": "claude-haiku-4-5"}
+    info = {"public_url": "https://oddish.app/share/tok", "agent": "claude-code", "model": "m"}
     monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
     monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest, nonce="": dest)
-    monkeypatch.setattr(module.oddish, "submit",
-                        lambda cfg, packed, log, agent=None, model=None: info)
+    monkeypatch.setattr(module.oddish, "submit", lambda cfg, packed, log: info)
+    monkeypatch.setattr(module, "_spawn", lambda target, *a: target(*a))  # run inline
 
-    body = c.post(f"/api/runs/{rid}/submit").json()
-    assert body["public_url"] == "https://oddish.app/share/tok"
+    assert c.post(f"/api/runs/{rid}/submit").json() == {"submitting": True}
     assert module.store.read(rid)["result"]["oddish"]["public_url"] == "https://oddish.app/share/tok"
 
 
@@ -293,38 +291,19 @@ def test_submit_is_unavailable_without_the_oddish_cli(client, monkeypatch):
     assert c.post(f"/api/runs/{rid}/submit").status_code == 503
 
 
-def test_submit_surfaces_an_oddish_failure_as_502(client, monkeypatch):
+def test_submit_records_an_oddish_failure_on_the_run(client, monkeypatch):
     c, module = client
     rid = _finished_run(module)
     monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
     monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest, nonce="": dest)
 
-    def boom(cfg, packed, log, agent=None, model=None):
+    def boom(cfg, packed, log):
         raise module.oddish.OddishError("publishing is disabled")
 
     monkeypatch.setattr(module.oddish, "submit", boom)
-    r = c.post(f"/api/runs/{rid}/submit")
-    assert r.status_code == 502
-    assert "publishing is disabled" in r.json()["detail"]
-
-
-def test_submit_passes_the_chosen_solver_and_rejects_unknown_ones(client, monkeypatch):
-    c, module = client
-    rid = _finished_run(module)
-    monkeypatch.setattr(module.oddish, "available", lambda _cfg: True)
-    monkeypatch.setattr(module.harbor, "pack", lambda cfg, task, dest, nonce="": dest)
-    seen = {}
-
-    def fake_submit(cfg, packed, log, agent=None, model=None):
-        seen["agent"], seen["model"] = agent, model
-        return {"public_url": "u", "agent": agent, "model": model}
-
-    monkeypatch.setattr(module.oddish, "submit", fake_submit)
-    picked = module.cfg.oddish_solvers[1]["model"]  # not the default
-    assert c.post(f"/api/runs/{rid}/submit", json={"model": picked}).status_code == 200
-    assert seen["model"] == picked
-
-    assert c.post(f"/api/runs/{rid}/submit", json={"model": "no-such-model"}).status_code == 400
+    monkeypatch.setattr(module, "_spawn", lambda target, *a: target(*a))
+    assert c.post(f"/api/runs/{rid}/submit").json() == {"submitting": True}
+    assert "publishing is disabled" in module.store.read(rid)["result"]["oddish_error"]
 
 
 def test_submit_404s_for_an_unknown_run(client):

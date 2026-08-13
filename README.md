@@ -36,17 +36,13 @@ Harbor task (a `Dockerfile` that pins the repo's Lean toolchain and pre-builds i
 and a verifier that runs the shipped grader) and hands it to the [Oddish](https://oddish.app) CLI:
 
 ```
-oddish run <task> -a claude-code -m claude-haiku-4-5 --publish --background --json
+oddish run <task> -a claude-code -m openrouter/deepseek/deepseek-v4-flash --publish --background --json
 ```
 
-Oddish runs it under Claude Code with the solver you pick in the dialog (Claude Haiku 4.5 by
-default) under a 30-minute limit, and returns a public link where you watch the attempt live. This
-needs the `oddish` CLI installed and signed in on the server; the button is disabled otherwise.
-
-The dialog's solver list is configurable (`THEOREMSMITH_ODDISH_SOLVERS`) and defaults to Claude
-Haiku 4.5, DeepSeek V4 Flash, and MiniMax M3. Model ids are what `oddish run -m` accepts; DeepSeek is
-not in Oddish's static table, so override its id (e.g. `openrouter/deepseek/...`) if the default does
-not resolve.
+Oddish runs it under Claude Code on DeepSeek V4 Flash (via OpenRouter) under a 30-minute limit, and
+returns a public link where you watch the attempt live. This needs the `oddish` CLI installed and
+signed in on the server; the button is disabled otherwise. Change the solver with
+`THEOREMSMITH_ODDISH_MODEL` (any id `oddish run -m` accepts).
 
 | Variable | Default |
 | --- | --- |
@@ -54,8 +50,7 @@ not resolve.
 | `THEOREMSMITH_BASE_URL` | `https://openrouter.ai/api/v1` |
 | `THEOREMSMITH_CREATE_MODEL` | `moonshotai/kimi-k2.7-code` |
 | `THEOREMSMITH_ODDISH_AGENT` | `claude-code` |
-| `THEOREMSMITH_ODDISH_MODEL` | `claude-haiku-4-5` (the default solver) |
-| `THEOREMSMITH_ODDISH_SOLVERS` | the four solvers above (override: `Label\|model\|agent, …`) |
+| `THEOREMSMITH_ODDISH_MODEL` | `openrouter/deepseek/deepseek-v4-flash` |
 | `THEOREMSMITH_ODDISH_TIMEOUT` | `1800` seconds (the agent's limit on Oddish) |
 | `THEOREMSMITH_ODDISH_ENV` | — (Oddish picks; e.g. `daytona`) |
 | `THEOREMSMITH_MAX_RUNS` | `2` |
