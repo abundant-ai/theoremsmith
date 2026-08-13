@@ -23,3 +23,18 @@ def test_examples_can_be_overridden_by_env(monkeypatch):
 def test_a_blank_override_falls_back_to_the_default(monkeypatch):
     monkeypatch.setenv("THEOREMSMITH_EXAMPLES", "   ")
     assert config.Config.load().examples == config.DEFAULT_EXAMPLES
+
+
+def test_solvers_default_to_the_four_named(monkeypatch):
+    monkeypatch.delenv("THEOREMSMITH_ODDISH_SOLVERS", raising=False)
+    models = [s["model"] for s in config.Config.load().oddish_solvers]
+    assert models == ["claude-haiku-4-5", "deepseek-v4-flash", "minimax-m3", "claude-sonnet-4-6"]
+
+
+def test_solvers_can_be_overridden_by_env(monkeypatch):
+    monkeypatch.setenv("THEOREMSMITH_ODDISH_SOLVERS",
+                       "Fast|deepseek-v4-flash, Big|claude-opus-5|claude-code")
+    assert config.Config.load().oddish_solvers == [
+        {"label": "Fast", "model": "deepseek-v4-flash", "agent": "claude-code"},
+        {"label": "Big", "model": "claude-opus-5", "agent": "claude-code"},
+    ]

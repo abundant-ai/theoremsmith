@@ -78,19 +78,22 @@ def _extract_json(stdout: str) -> dict:
     raise OddishError(f"could not read oddish's response: {text[-400:]}")
 
 
-def _command(cfg: Config, task_dir: Path) -> list[str]:
+def _command(cfg: Config, task_dir: Path, agent: str, model: str) -> list[str]:
     cmd = [cfg.oddish_bin, "run", str(task_dir),
-           "-a", cfg.oddish_agent, "-m", cfg.oddish_model,
+           "-a", agent, "-m", model,
            "--publish", "--background", "--json"]
     if cfg.oddish_env:
         cmd += ["--env", cfg.oddish_env]
     return cmd
 
 
-def submit(cfg: Config, task_dir: Path, on_log: Callable[[str], None] = lambda _l: None) -> dict:
+def submit(cfg: Config, task_dir: Path, on_log: Callable[[str], None] = lambda _l: None,
+           agent: str | None = None, model: str | None = None) -> dict:
     if not available(cfg):
         raise OddishError(f"the `{cfg.oddish_bin}` CLI is not on the server's PATH")
-    cmd = _command(cfg, task_dir)
+    agent = agent or cfg.oddish_agent
+    model = model or cfg.oddish_model
+    cmd = _command(cfg, task_dir, agent, model)
     on_log(f"$ {' '.join(cmd)}")
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True,
@@ -121,6 +124,6 @@ def submit(cfg: Config, task_dir: Path, on_log: Callable[[str], None] = lambda _
         "experiment": data.get("experiment"),
         "task_id": task_id,
         "trial_id": trial_id,
-        "agent": cfg.oddish_agent,
-        "model": cfg.oddish_model,
+        "agent": agent,
+        "model": model,
     }

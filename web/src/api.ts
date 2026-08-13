@@ -57,6 +57,8 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 export type Example = { repo: string; note: string };
 
+export type Solver = { label: string; agent: string; model: string };
+
 export type Config = {
   create_model: string;
   configured: boolean;
@@ -65,6 +67,7 @@ export type Config = {
   oddish_agent: string;
   oddish_model: string;
   oddish_timeout: number;
+  oddish_solvers: Solver[];
   oddish_available: boolean;
 };
 
@@ -83,7 +86,8 @@ export const api = {
     `/api/scan/stream?repo=${encodeURIComponent(repo)}&sha=${encodeURIComponent(sha)}`,
   create: (repo: string, sha: string, goals: string[]) =>
     call<Run>("/runs", { method: "POST", body: JSON.stringify({ repo, sha, goals }) }),
-  submit: (id: string) => call<OddishRun>(`/runs/${id}/submit`, { method: "POST" }),
+  submit: (id: string, model = "") =>
+    call<OddishRun>(`/runs/${id}/submit`, { method: "POST", body: JSON.stringify({ model }) }),
   remove: (id: string) => call<{ deleted: string }>(`/runs/${id}`, { method: "DELETE" }),
   taskUrl: (id: string) => `/api/runs/${id}/task`,
 };

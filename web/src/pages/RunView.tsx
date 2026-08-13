@@ -8,7 +8,9 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
+import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 
@@ -29,9 +31,15 @@ export default function RunView() {
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState<OddishRun | undefined>();
+  const [solveModel, setSolveModel] = useState("");
 
   useEffect(() => {
-    api.config().then(setCfg).catch(() => {});
+    api.config()
+      .then((c) => {
+        setCfg(c);
+        setSolveModel(c.oddish_model);
+      })
+      .catch(() => {});
   }, []);
 
   if (!run) return <Typography variant="body2">loading</Typography>;
@@ -52,7 +60,7 @@ export default function RunView() {
     setBusy(true);
     setSubmitError("");
     try {
-      setSubmitted(await api.submit(id));
+      setSubmitted(await api.submit(id, solveModel));
       setConfirm(false);
     } catch (e) {
       setSubmitError(String(e instanceof Error ? e.message : e));
@@ -201,13 +209,26 @@ export default function RunView() {
       <Dialog open={confirm} onClose={() => (busy ? null : setConfirm(false))} fullWidth maxWidth="sm">
         <DialogTitle sx={{ fontSize: 15, fontWeight: 500 }}>Run this task on Oddish?</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary">
-            Oddish packages this task and runs it with{" "}
-            <b>{cfg?.oddish_agent ?? "claude-code"}</b> on{" "}
-            <b>{cfg?.oddish_model ?? "claude-haiku-4-5"}</b>, with
-            a {minutes}-minute limit. It uses your Oddish account and returns a public link where you
-            can watch the attempt live.
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Oddish packages this task and runs it under <b>{cfg?.oddish_agent ?? "claude-code"}</b> with
+            the solver you pick, with a {minutes}-minute limit. It uses your Oddish account and returns a
+            public link where you can watch the attempt live.
           </Typography>
+          <TextField
+            select
+            fullWidth
+            size="small"
+            label="Solver"
+            value={solveModel}
+            onChange={(e) => setSolveModel(e.target.value)}
+            disabled={busy}
+          >
+            {(cfg?.oddish_solvers ?? []).map((s) => (
+              <MenuItem key={s.model} value={s.model}>
+                {s.label} — {s.model}
+              </MenuItem>
+            ))}
+          </TextField>
           {submitError && (
             <Typography variant="caption" color="error" sx={{ display: "block", mt: 2 }}>
               {submitError}

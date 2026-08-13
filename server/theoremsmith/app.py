@@ -50,6 +50,19 @@ class NewRun(BaseModel):
     goals: list[str] = []
 
 
+class SubmitReq(BaseModel):
+    model: str = ""
+
+
+def _resolve_solver(model: str) -> tuple[str, str]:
+    if not model:
+        return cfg.oddish_agent, cfg.oddish_model
+    for solver in cfg.oddish_solvers:
+        if solver.get("model") == model:
+            return solver.get("agent") or cfg.oddish_agent, model
+    raise HTTPException(400, f"unknown solver model: {model}")
+
+
 def _repo(raw: str) -> str:
     raw = raw.strip().removesuffix(".git").removesuffix("/")
     raw = re.sub(r"^https?://github\.com/", "", raw)
@@ -64,7 +77,7 @@ def config() -> dict:
             "configured": bool(cfg.api_key), "max_runs": cfg.max_runs,
             "examples": cfg.examples,
             "oddish_agent": cfg.oddish_agent, "oddish_model": cfg.oddish_model,
-            "oddish_timeout": cfg.oddish_timeout,
+            "oddish_timeout": cfg.oddish_timeout, "oddish_solvers": cfg.oddish_solvers,
             "oddish_available": oddish.available(cfg)}
 
 
@@ -298,7 +311,7 @@ def download_task(run_id: str):
 
 
 @app.post("/api/runs/{run_id}/submit")
-def submit_to_oddish(run_id: str) -> dict:
+def submit_to_oddish(run_id: str, body: SubmitReq | None = None) -> dict:
     run = store.read(run_id)
     if not run:
         raise HTTPException(404, "no such run")
@@ -310,9 +323,10 @@ def submit_to_oddish(run_id: str) -> dict:
     if not oddish.available(cfg):
         raise HTTPException(503, f"the `{cfg.oddish_bin}` CLI is not on the server's PATH")
 
+    agent, model = _resolve_solver(body.model if body else "")
     log = lambda line: events.emit(run_id, "log", text=str(line)[:2000], level="info")
-    events.emit(run_id, "log", text=f"submitting to Oddish: {cfg.oddish_agent} / "
-                f"{cfg.oddish_model}, {cfg.oddish_timeout // 60}-minute limit", level="info")
+    events.emit(run_id, "log", text=f"submitting to Oddish: {agent} / "
+                f"{model}, {cfg.oddish_timeout // 60}-minute limit", level="info")
     # Oddish derives the task id from the packed dir name + content hash, so give
     # each submit a unique name and nonce — otherwise it collides with a prior
     # submit's task (and inherits its state, e.g. a cancelled task's dead S3 data).
@@ -321,7 +335,7 @@ def submit_to_oddish(run_id: str) -> dict:
     packed = store.dir(run_id) / f"{slug}-{nonce[:8]}"
     try:
         harbor.pack(cfg, task_dir, packed, nonce=nonce)
-        info = oddish.submit(cfg, packed, log)
+        info = oddish.submit(cfg, packed, log, agent=agent, model=model)
     except oddish.OddishError as exc:
         events.emit(run_id, "log", text=f"Oddish submit failed: {exc}", level="error")
         raise HTTPException(502, str(exc)[:400]) from exc

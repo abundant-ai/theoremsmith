@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # Repositories offered as one-click starting points. Each is verified end to end:
@@ -25,6 +25,32 @@ def _load_examples() -> list[dict]:
     return out or DEFAULT_EXAMPLES
 
 
+# Solvers offered in the "Run on Oddish" dialog. Every one runs under the same
+# agent unless its own `agent` is given. Model ids are what `oddish run -m` takes;
+# `claude-haiku-4-5` and `minimax-m3` are in Oddish's table, `claude-sonnet-4-6`
+# too. DeepSeek is NOT in Oddish's static table — override with the exact provider
+# id (e.g. `openrouter/deepseek/...`) via THEOREMSMITH_ODDISH_SOLVERS if needed.
+DEFAULT_SOLVERS = [
+    {"label": "Claude Haiku 4.5", "agent": "claude-code", "model": "claude-haiku-4-5"},
+    {"label": "DeepSeek V4 Flash", "agent": "claude-code", "model": "deepseek-v4-flash"},
+    {"label": "MiniMax M3", "agent": "claude-code", "model": "minimax-m3"},
+    {"label": "Claude Code (Sonnet)", "agent": "claude-code", "model": "claude-sonnet-4-6"},
+]
+
+
+def _load_solvers() -> list[dict]:
+    raw = os.getenv("THEOREMSMITH_ODDISH_SOLVERS", "").strip()
+    if not raw:
+        return DEFAULT_SOLVERS
+    out = []
+    for item in raw.split(","):
+        parts = [p.strip() for p in item.split("|")]
+        if len(parts) >= 2 and parts[0] and parts[1]:
+            out.append({"label": parts[0], "model": parts[1],
+                        "agent": parts[2] if len(parts) > 2 and parts[2] else "claude-code"})
+    return out or DEFAULT_SOLVERS
+
+
 @dataclass(frozen=True)
 class Config:
     data_dir: Path
@@ -42,11 +68,13 @@ class Config:
     oddish_env: str = ""
     oddish_timeout: int = 1800
     oddish_submit_timeout: int = 600
+    oddish_solvers: list[dict] = field(default_factory=lambda: list(DEFAULT_SOLVERS))
 
     @staticmethod
     def load() -> "Config":
         return Config(
             examples=_load_examples(),
+            oddish_solvers=_load_solvers(),
             data_dir=Path(os.getenv("THEOREMSMITH_DATA", "./data")).resolve(),
             base_url=os.getenv("THEOREMSMITH_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/"),
             api_key=os.getenv("THEOREMSMITH_API_KEY") or os.getenv("OPENROUTER_API_KEY", ""),
