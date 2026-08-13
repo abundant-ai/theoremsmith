@@ -168,8 +168,8 @@ export default function RunView() {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="caption" sx={{ display: "block", mb: 0.75 }}>
             {oddish
-              ? `Oddish solver · ${oddish.agent ?? cfg?.oddish_agent} / ${oddish.model ?? cfg?.oddish_model}`
-              : "model"}
+              ? `live solve · ${oddish.agent ?? cfg?.oddish_agent} / ${oddish.model ?? cfg?.oddish_model}`
+              : `builder model · ${cfg?.create_model ?? ""}`}
           </Typography>
           {oddish ? (
             <SolvePane runId={id} height={360} />
