@@ -27,14 +27,13 @@ def _load_examples() -> list[dict]:
 
 # Solvers offered in the "Run on Oddish" dialog. Every one runs under the same
 # agent unless its own `agent` is given. Model ids are what `oddish run -m` takes;
-# `claude-haiku-4-5` and `minimax-m3` are in Oddish's table, `claude-sonnet-4-6`
-# too. DeepSeek is NOT in Oddish's static table — override with the exact provider
-# id (e.g. `openrouter/deepseek/...`) via THEOREMSMITH_ODDISH_SOLVERS if needed.
+# `claude-haiku-4-5` and `minimax-m3` are in Oddish's table. DeepSeek is NOT — so
+# override with the exact provider id (e.g. `openrouter/deepseek/...`) via
+# THEOREMSMITH_ODDISH_SOLVERS if the default does not resolve.
 DEFAULT_SOLVERS = [
     {"label": "Claude Haiku 4.5", "agent": "claude-code", "model": "claude-haiku-4-5"},
     {"label": "DeepSeek V4 Flash", "agent": "claude-code", "model": "deepseek-v4-flash"},
     {"label": "MiniMax M3", "agent": "claude-code", "model": "minimax-m3"},
-    {"label": "Claude Code (Sonnet)", "agent": "claude-code", "model": "claude-sonnet-4-6"},
 ]
 
 

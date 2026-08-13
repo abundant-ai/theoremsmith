@@ -25,10 +25,11 @@ def test_a_blank_override_falls_back_to_the_default(monkeypatch):
     assert config.Config.load().examples == config.DEFAULT_EXAMPLES
 
 
-def test_solvers_default_to_the_four_named(monkeypatch):
+def test_solvers_default_to_the_named_models(monkeypatch):
     monkeypatch.delenv("THEOREMSMITH_ODDISH_SOLVERS", raising=False)
     models = [s["model"] for s in config.Config.load().oddish_solvers]
-    assert models == ["claude-haiku-4-5", "deepseek-v4-flash", "minimax-m3", "claude-sonnet-4-6"]
+    assert models == ["claude-haiku-4-5", "deepseek-v4-flash", "minimax-m3"]
+    assert "claude-sonnet-4-6" not in models
 
 
 def test_solvers_can_be_overridden_by_env(monkeypatch):

@@ -44,9 +44,9 @@ default) under a 30-minute limit, and returns a public link where you watch the 
 needs the `oddish` CLI installed and signed in on the server; the button is disabled otherwise.
 
 The dialog's solver list is configurable (`THEOREMSMITH_ODDISH_SOLVERS`) and defaults to Claude
-Haiku 4.5, DeepSeek V4 Flash, MiniMax M3, and Claude Code (Sonnet). Model ids are what `oddish run
--m` accepts; DeepSeek is not in Oddish's static table, so override its id (e.g.
-`openrouter/deepseek/...`) if the default does not resolve.
+Haiku 4.5, DeepSeek V4 Flash, and MiniMax M3. Model ids are what `oddish run -m` accepts; DeepSeek is
+not in Oddish's static table, so override its id (e.g. `openrouter/deepseek/...`) if the default does
+not resolve.
 
 | Variable | Default |
 | --- | --- |
