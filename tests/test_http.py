@@ -321,6 +321,40 @@ def test_submit_404s_for_an_unknown_run(client):
     assert c.post("/api/runs/nope/submit").status_code == 404
 
 
+def test_file_browser_lists_and_reads_only_visible_task_files(client):
+    c, module = client
+    rid = _finished_run(module)
+    task = module.store.dir(rid) / "task"
+    (task / "environment").mkdir()
+    (task / "solution").mkdir()
+    (task / "environment" / "Main.lean").write_text("theorem x : True := by trivial\n")
+    (task / "solution" / "x.lean").write_text("by trivial\n")
+
+    tree = c.get(f"/api/runs/{rid}/files").json()["tree"]
+    assert "Main.lean" in str(tree) and "solution" not in str(tree)
+    body = c.get(f"/api/runs/{rid}/file", params={"path": "task/environment/Main.lean"}).json()
+    assert body["kind"] == "text" and "theorem x" in body["content"]
+    assert c.get(f"/api/runs/{rid}/file",
+                 params={"path": "task/solution/x.lean"}).status_code == 400
+
+
+def test_extension_generation_runs_in_the_background_and_updates_the_run(client, monkeypatch):
+    c, module = client
+    rid = _finished_run(module)
+    meta = {"status": "done", "summary": "Added 2 verified Lean theorems."}
+    monkeypatch.setattr(module.extend, "generate", lambda *a, **k: meta)
+    monkeypatch.setattr(module, "_spawn", lambda target, *a: target(*a))
+
+    assert c.post(f"/api/runs/{rid}/extend").json() == {"generating": True}
+    assert module.store.read(rid)["result"]["extension"] == meta
+
+
+def test_extension_generation_requires_a_verified_task(client):
+    c, module = client
+    rid = _finished_run(module, verified=False)
+    assert c.post(f"/api/runs/{rid}/extend").status_code == 409
+
+
 def test_solve_events_404s_for_an_unknown_run(client):
     c, _ = client
     assert c.get("/api/runs/nope/solve/events").status_code == 404

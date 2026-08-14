@@ -16,6 +16,7 @@ import {
 } from "@radix-ui/themes";
 
 import { api, type Config, type StageState } from "../api";
+import FileViewer from "../components/FileViewer";
 import LogPane from "../components/LogPane";
 import Stages from "../components/Stages";
 import StatusChip from "../components/StatusChip";
@@ -30,6 +31,9 @@ export default function RunView() {
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [extensionBusy, setExtensionBusy] = useState(false);
+  const [extensionError, setExtensionError] = useState("");
 
   useEffect(() => {
     api.config().then(setCfg).catch(() => {});
@@ -40,11 +44,16 @@ export default function RunView() {
     if (run?.result?.oddish || run?.result?.oddish_error) setSubmitting(false);
   }, [run?.result?.oddish, run?.result?.oddish_error]);
 
+  useEffect(() => {
+    if (run?.result?.extension?.status !== "running") setExtensionBusy(false);
+  }, [run?.result?.extension?.status]);
+
   if (!run) return <Text size="2" color="gray">loading</Text>;
 
   const result = run.result;
   const oddish = result?.oddish;
   const oddishError = result?.oddish_error;
+  const extension = result?.extension;
   const canSubmit = run.status === "done" && result?.verified === true;
   const minutes = Math.round((cfg?.oddish_timeout ?? 1800) / 60);
   const solveModel = oddish?.model ?? cfg?.oddish_model;
@@ -71,6 +80,17 @@ export default function RunView() {
     }
   }
 
+  async function generateExtension() {
+    setExtensionBusy(true);
+    setExtensionError("");
+    try {
+      await api.extend(id);
+    } catch (e) {
+      setExtensionError(String(e instanceof Error ? e.message : e));
+      setExtensionBusy(false);
+    }
+  }
+
   const targets = result?.targets ?? [];
 
   return (
@@ -92,8 +112,26 @@ export default function RunView() {
         </Flex>
         <Flex gap="2">
           {run.status === "done" ? (
+            <Button variant="soft" color="gray" onClick={() => setFilesOpen(true)}>
+              View files
+            </Button>
+          ) : null}
+          {run.status === "done" ? (
             <Button variant="soft" color="gray" asChild>
               <a href={api.taskUrl(run.id)}>Download task</a>
+            </Button>
+          ) : null}
+          {canSubmit ? (
+            <Button
+              variant="soft"
+              onClick={generateExtension}
+              disabled={extensionBusy || extension?.status === "running"}
+            >
+              {extensionBusy || extension?.status === "running"
+                ? "Generating extension"
+                : extension?.status === "done"
+                  ? "Regenerate extension"
+                  : "Generate synthetic extension"}
             </Button>
           ) : null}
           {canSubmit && !oddish && !submitting ? (
@@ -127,6 +165,43 @@ export default function RunView() {
         <Callout.Root color="red" variant="surface">
           <Callout.Text>{run.error}</Callout.Text>
         </Callout.Root>
+      )}
+
+      {(extensionBusy || extension?.status === "running") && (
+        <Callout.Root color="gray" variant="surface">
+          <Callout.Text>
+            <Flex align="center" gap="2">
+              <Spinner size="1" />
+              Generating two linked Lean theorems and checking them locally.
+            </Flex>
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
+      {(extensionError || extension?.status === "failed") && (
+        <Callout.Root color="red" variant="surface">
+          <Callout.Text>
+            Extension failed: {extensionError || extension?.error || "unknown error"}
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
+      {extension?.status === "done" && (
+        <Card size="2">
+          <Flex align="center" justify="between" gap="3" wrap="wrap">
+            <div>
+              <Heading size="2" weight="medium" mb="1">
+                Synthetic extension verified
+              </Heading>
+              <Text size="2" color="gray">
+                {extension.summary}
+              </Text>
+            </div>
+            <Button variant="soft" color="gray" onClick={() => setFilesOpen(true)}>
+              View generated file
+            </Button>
+          </Flex>
+        </Card>
       )}
 
       {submitting && !oddish && (
@@ -314,6 +389,7 @@ export default function RunView() {
           </Flex>
         </Dialog.Content>
       </Dialog.Root>
+      <FileViewer runId={run.id} open={filesOpen} onOpenChange={setFilesOpen} />
     </Flex>
   );
 }

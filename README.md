@@ -29,6 +29,16 @@ takes much longer; raise `THEOREMSMITH_BUILD_TIMEOUT` before trying one.
 The **create** model runs the scan, the theorem choice, and the description, through one
 OpenAI-compatible endpoint (OpenRouter by default).
 
+## Synthetic extension demo
+
+Every finished, verified run has **Generate synthetic extension** and **View files** buttons. The
+extension action asks the create model for two new linked Lean theorems, checks the file with the
+run's already-built Lean environment, and gives the model one repair attempt if Lean rejects it.
+Only a verified file is saved under `extension/`, with a short factual summary on the run page.
+
+This is an MVP: it produces a local extension artifact for inspection. It does not change the
+downloaded benchmark task or submit the new theorems to Oddish.
+
 ## Send it to Oddish
 
 theoremsmith builds the task; it does not solve it. When a run finishes and its original proofs
@@ -124,6 +134,8 @@ server/theoremsmith/
   emit.py       writes the task directory and the grader
   harbor.py     repackages a finished task for Oddish/Harbor
   oddish.py     submits a task through the Oddish CLI
+  extend.py     generates and locally verifies a two-theorem extension
+  files.py      exposes safe solver-visible file previews
   llm.py        streaming OpenAI-compatible client
   store.py      runs on disk
   events.py     the event bus behind the live view

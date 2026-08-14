@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from theoremsmith import dagcut, emit, lean
+from theoremsmith import dagcut, emit, extend, lean
 
 pytestmark = pytest.mark.skipif(shutil.which("lake") is None,
                                 reason="needs a Lean toolchain on PATH")
@@ -93,6 +93,20 @@ def test_the_probe_finds_the_real_proof_dependencies(built):
     assert set(graph.nodes) == {"Demo.add_comm_demo", "Demo.add_zero_left", "Demo.helper_succ"}
     assert graph.body["Demo.add_comm_demo"] == {"Demo.add_zero_left", "Demo.helper_succ"}
     assert any(r.get("record") == "goal" and r["name"] == "Demo.add_comm_demo" for r in rows)
+
+
+def test_a_synthetic_extension_compiles_against_the_built_package(built, tmp_path):
+    names = ("theoremsmith_extension_demo_step1", "theoremsmith_extension_demo_step2")
+    code = tmp_path / "TheoremSmithExtension.lean"
+    code.write_text(
+        "import Demo.Basic\n\n"
+        f"theorem {names[0]} (a b : Nat) : a + b = b + a := by\n"
+        "  exact Demo.add_comm_demo a b\n\n"
+        f"theorem {names[1]} (a b : Nat) : b + a = a + b := by\n"
+        f"  exact {names[0]} b a\n"
+    )
+    ok, output = extend._compile(built, code, names, 120)
+    assert ok, output
 
 
 def test_the_cut_blanks_the_goal_and_everything_its_proof_needed(task):
