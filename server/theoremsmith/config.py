@@ -38,7 +38,7 @@ class Config:
     examples: list[dict]
     oddish_bin: str = "oddish"
     oddish_agent: str = "claude-code"
-    oddish_model: str = "minimax-m3"
+    oddish_model: str = "fireworks/minimax-m3"
     oddish_env: str = ""
     oddish_timeout: int = 1800
     oddish_submit_timeout: int = 600
@@ -57,7 +57,7 @@ class Config:
             clone_timeout=int(os.getenv("THEOREMSMITH_CLONE_TIMEOUT", "600")),
             oddish_bin=os.getenv("THEOREMSMITH_ODDISH_BIN", "oddish"),
             oddish_agent=os.getenv("THEOREMSMITH_ODDISH_AGENT", "claude-code"),
-            oddish_model=os.getenv("THEOREMSMITH_ODDISH_MODEL", "minimax-m3"),
+            oddish_model=os.getenv("THEOREMSMITH_ODDISH_MODEL", "fireworks/minimax-m3"),
             oddish_env=os.getenv("THEOREMSMITH_ODDISH_ENV", ""),
             oddish_timeout=int(os.getenv("THEOREMSMITH_ODDISH_TIMEOUT", "1800")),
             oddish_submit_timeout=int(os.getenv("THEOREMSMITH_ODDISH_SUBMIT_TIMEOUT", "600")),

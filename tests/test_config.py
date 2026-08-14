@@ -29,4 +29,4 @@ def test_the_solver_defaults_to_minimax(monkeypatch):
     monkeypatch.delenv("THEOREMSMITH_ODDISH_MODEL", raising=False)
     cfg = config.Config.load()
     assert cfg.oddish_agent == "claude-code"
-    assert cfg.oddish_model == "minimax-m3"
+    assert cfg.oddish_model == "fireworks/minimax-m3"

@@ -36,11 +36,11 @@ Harbor task (a `Dockerfile` that pins the repo's Lean toolchain and pre-builds i
 and a verifier that runs the shipped grader) and hands it to the [Oddish](https://oddish.app) CLI:
 
 ```
-oddish run <task> -a claude-code -m minimax-m3 --publish --background --json
+oddish run <task> -a claude-code -m fireworks/minimax-m3 --publish --background --json
 ```
 
-Oddish runs it under Claude Code on MiniMax M3 under a 30-minute limit, and returns a public link
-where you watch the attempt live. This needs the `oddish` CLI installed and signed in on the server;
+Oddish runs it under Claude Code on MiniMax M3 (via Fireworks) under a 30-minute limit, and returns a
+public link where you watch the attempt live. This needs the `oddish` CLI installed and signed in on the server;
 the button is disabled otherwise. Change the solver with `THEOREMSMITH_ODDISH_MODEL` (any id
 `oddish run -m` accepts).
 
@@ -50,7 +50,7 @@ the button is disabled otherwise. Change the solver with `THEOREMSMITH_ODDISH_MO
 | `THEOREMSMITH_BASE_URL` | `https://openrouter.ai/api/v1` |
 | `THEOREMSMITH_CREATE_MODEL` | `moonshotai/kimi-k2.7-code` |
 | `THEOREMSMITH_ODDISH_AGENT` | `claude-code` |
-| `THEOREMSMITH_ODDISH_MODEL` | `minimax-m3` |
+| `THEOREMSMITH_ODDISH_MODEL` | `fireworks/minimax-m3` |
 | `THEOREMSMITH_ODDISH_TIMEOUT` | `1800` seconds (the agent's limit on Oddish) |
 | `THEOREMSMITH_ODDISH_ENV` | — (Oddish picks; e.g. `daytona`) |
 | `THEOREMSMITH_MAX_RUNS` | `2` |

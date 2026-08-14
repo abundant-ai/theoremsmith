@@ -23,7 +23,7 @@ def test_config_reports_the_model_and_whether_a_key_is_set(client):
     assert body["max_runs"] == 1
     assert body["create_model"]
     assert body["oddish_agent"] == "claude-code"
-    assert body["oddish_model"] == "minimax-m3"
+    assert body["oddish_model"] == "fireworks/minimax-m3"
     assert body["oddish_agent"] == "claude-code"
     assert body["oddish_timeout"] == 1800
     assert "oddish_available" in body
