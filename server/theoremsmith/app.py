@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 import shutil
 import tempfile
 
-from . import events, harbor, lean, oddish, pipeline, scan
+from . import events, extend, files, harbor, lean, oddish, pipeline, scan
 from .config import Config
 from .store import Store, new_id
 
@@ -302,8 +302,67 @@ def download_task(run_id: str):
                              headers={"Content-Disposition": f'attachment; filename="{run_id}-task.zip"'})
 
 
+@app.get("/api/runs/{run_id}/files")
+def list_files(run_id: str) -> dict:
+    run = store.read(run_id)
+    if not run:
+        raise HTTPException(404, "no such run")
+    return {"tree": files.tree(store.dir(run_id))}
+
+
+@app.get("/api/runs/{run_id}/file")
+def read_file(run_id: str, path: str) -> dict:
+    run = store.read(run_id)
+    if not run:
+        raise HTTPException(404, "no such run")
+    try:
+        return files.read(store.dir(run_id), path)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(404, f"no file {path!r}") from exc
+
+
 def _spawn(target, *args) -> None:
     Thread(target=target, args=args, daemon=True).start()
+
+
+def _generate_extension(run_id: str) -> None:
+    run = store.read(run_id)
+    if not run:
+        return
+    sink = lambda line: events.emit(run_id, "log", text=str(line)[-2000:], level="info")
+    try:
+        meta = extend.generate(cfg, run, store.dir(run_id), sink)
+    except Exception as exc:
+        events.emit(run_id, "log", text=f"extension failed: {exc}", level="error")
+        meta = {"status": "failed", "error": str(exc)[:500]}
+    run = store.read(run_id)
+    if not run:
+        return
+    run["result"] = {**(run.get("result") or {}), "extension": meta}
+    store.write(run)
+    events.emit(run_id, "status", status=run.get("status"))
+
+
+@app.post("/api/runs/{run_id}/extend")
+def generate_extension(run_id: str) -> dict:
+    run = store.read(run_id)
+    if not run:
+        raise HTTPException(404, "no such run")
+    if not cfg.api_key:
+        raise HTTPException(400, "THEOREMSMITH_API_KEY is not set on the server")
+    if run["status"] != "done" or not (run.get("result") or {}).get("verified"):
+        raise HTTPException(409, "only a finished, verified task can be extended")
+    with admission:
+        run = store.read(run_id) or run
+        current = (run.get("result") or {}).get("extension") or {}
+        if current.get("status") == "running":
+            raise HTTPException(409, "an extension is already being generated")
+        run["result"] = {**(run.get("result") or {}), "extension": {"status": "running"}}
+        store.write(run)
+    _spawn(_generate_extension, run_id)
+    return {"generating": True}
 
 
 def _submit_to_oddish(run_id: str) -> None:

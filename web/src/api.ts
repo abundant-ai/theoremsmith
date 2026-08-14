@@ -24,7 +24,33 @@ export type Run = {
     glosses?: Record<string, string>;
     oddish?: OddishRun;
     oddish_error?: string;
+    extension?: SyntheticExtension;
   } | null;
+};
+
+export type SyntheticExtension = {
+  status: "running" | "done" | "failed";
+  file?: string;
+  theorems?: string[];
+  depends_on?: string;
+  summary?: string;
+  error?: string;
+};
+
+export type FileNode = {
+  name: string;
+  path: string;
+  type: "dir" | "file";
+  size?: number;
+  children?: FileNode[];
+};
+
+export type FilePreview = {
+  kind: "text" | "binary" | "too_large";
+  name: string;
+  path: string;
+  size: number;
+  content?: string;
 };
 
 export type OddishRun = {
@@ -86,6 +112,10 @@ export const api = {
   create: (repo: string, sha: string, goals: string[], glosses: Record<string, string> = {}) =>
     call<Run>("/runs", { method: "POST", body: JSON.stringify({ repo, sha, goals, glosses }) }),
   submit: (id: string) => call<{ submitting: boolean }>(`/runs/${id}/submit`, { method: "POST" }),
+  extend: (id: string) => call<{ generating: boolean }>(`/runs/${id}/extend`, { method: "POST" }),
+  files: (id: string) => call<{ tree: FileNode }>(`/runs/${id}/files`),
+  file: (id: string, path: string) =>
+    call<FilePreview>(`/runs/${id}/file?path=${encodeURIComponent(path)}`),
   remove: (id: string) => call<{ deleted: string }>(`/runs/${id}`, { method: "DELETE" }),
   taskUrl: (id: string) => `/api/runs/${id}/task`,
 };
