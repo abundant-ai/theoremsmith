@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
 import {
   Box,
   Button,
@@ -11,6 +11,7 @@ import {
   Heading,
   Link,
   Separator,
+  Spinner,
   Text,
   Tooltip,
 } from "@radix-ui/themes";
@@ -26,16 +27,21 @@ import { useRunStream } from "../useRunStream";
 
 export default function RunView() {
   const { id = "" } = useParams();
-  const navigate = useNavigate();
   const { run, logs, model, phase, connected } = useRunStream(id);
   const [cfg, setCfg] = useState<Config | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     api.config().then(setCfg).catch(() => {});
   }, []);
+
+  // Once the background submit lands the Oddish link, the solver tail takes over.
+  useEffect(() => {
+    if (run?.result?.oddish) setSubmitting(false);
+  }, [run?.result?.oddish]);
 
   if (!run) return <Text size="2" color="gray">loading</Text>;
 
@@ -44,9 +50,10 @@ export default function RunView() {
   const oddishError = result?.oddish_error;
   const canSubmit = run.status === "done" && result?.verified === true;
   const minutes = Math.round((cfg?.oddish_timeout ?? 1800) / 60);
+  const showSolve = !!oddish || submitting;
   const oddishState: StageState = oddish
     ? "done"
-    : busy
+    : busy || submitting
       ? "running"
       : submitError || oddishError
         ? "failed"
@@ -58,7 +65,7 @@ export default function RunView() {
     try {
       await api.submit(id);
       setConfirm(false);
-      navigate("/");
+      setSubmitting(true);
     } catch (e) {
       setSubmitError(String(e instanceof Error ? e.message : e));
     } finally {
@@ -92,7 +99,7 @@ export default function RunView() {
               <a href={api.taskUrl(run.id)}>Download task</a>
             </Button>
           ) : null}
-          {canSubmit && !oddish ? (
+          {canSubmit && !oddish && !submitting ? (
             cfg && !cfg.oddish_available ? (
               <Tooltip content="the oddish CLI is not available on this server">
                 <span>
@@ -188,10 +195,23 @@ export default function RunView() {
       <Flex direction={{ initial: "column", md: "row" }} gap="4">
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Text size="1" color="gray" as="div" mb="2">
-            {oddish ? `live solve · ${solveAgent} / ${solveModel}` : `builder model · ${cfg?.create_model ?? ""}`}
+            {showSolve
+              ? `live solve · ${solveAgent} / ${solveModel}`
+              : `builder model · ${cfg?.create_model ?? ""}`}
           </Text>
           {oddish ? (
             <SolvePane runId={id} height={360} />
+          ) : submitting ? (
+            <Flex
+              align="center"
+              justify="center"
+              gap="2"
+              className="mono-panel"
+              style={{ height: 360, color: "var(--gray-10)" }}
+            >
+              <Spinner size="2" />
+              <span>loading — setting up the solver on Oddish…</span>
+            </Flex>
           ) : (
             <ModelPane model={model} phase={phase} height={360} />
           )}

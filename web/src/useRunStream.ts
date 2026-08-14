@@ -24,6 +24,9 @@ export function useRunStream(id: string): Stream {
     let live = true;
     const refresh = () => api.run(id).then((r) => live && setRun(r)).catch(() => {});
     refresh();
+    // The build event stream ends at completion, so poll to pick up later state
+    // changes — notably the Oddish link (or error) landing from a background submit.
+    const poll = setInterval(refresh, 3000);
 
     const source = new EventSource(`/api/runs/${id}/events?after=0`);
     source.onopen = () => setConnected(true);
@@ -51,6 +54,7 @@ export function useRunStream(id: string): Stream {
     };
     return () => {
       live = false;
+      clearInterval(poll);
       source.close();
     };
   }, [id]);
