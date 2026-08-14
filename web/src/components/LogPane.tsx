@@ -1,10 +1,8 @@
 import { useEffect, useRef } from "react";
-import Box from "@mui/material/Box";
 
 import type { Event } from "../api";
-import { monoFont } from "../theme";
 
-const COLOR: Record<string, string> = { error: "#b3261e", warn: "#8a6100" };
+const COLOR: Record<string, string> = { error: "var(--red-11)", warn: "var(--amber-11)" };
 
 export default function LogPane({
   logs,
@@ -24,28 +22,13 @@ export default function LogPane({
   }, [logs.length]);
 
   return (
-    <Box
-      ref={box}
-      sx={{
-        height,
-        overflowY: "auto",
-        border: 1,
-        borderColor: "divider",
-        bgcolor: "#fafafa",
-        p: 1.5,
-        fontFamily: monoFont,
-        fontSize: 12,
-        lineHeight: 1.65,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-      }}
-    >
-      {logs.length === 0 && <Box sx={{ color: "text.secondary" }}>{empty}</Box>}
+    <div ref={box} className="mono-panel" style={{ height }}>
+      {logs.length === 0 && <div style={{ color: "var(--gray-10)" }}>{empty}</div>}
       {logs.map((e) => (
-        <Box key={e.seq} sx={{ color: COLOR[e.level ?? ""] ?? "#333" }}>
+        <div key={e.seq} style={{ color: COLOR[e.level ?? ""] ?? "var(--gray-12)" }}>
           {e.text}
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }

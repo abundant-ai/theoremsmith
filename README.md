@@ -127,7 +127,7 @@ server/theoremsmith/
   store.py      runs on disk
   events.py     the event bus behind the live view
   assets/dag_probe.lean
-web/            React + MUI front end
+web/            React + Radix Themes front end
 ```
 
 ## Tests

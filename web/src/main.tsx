@@ -1,18 +1,24 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
+import { Theme } from "@radix-ui/themes";
+import "@radix-ui/themes/styles.css";
+import "./app.css";
 
-import { theme } from "./theme";
 import Shell from "./Shell";
 import Runs from "./pages/Runs";
 import RunView from "./pages/RunView";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
+    <Theme
+      accentColor="gray"
+      grayColor="sand"
+      radius="large"
+      scaling="100%"
+      appearance="light"
+      panelBackground="translucent"
+    >
       <BrowserRouter>
         <Shell>
           <Routes>
@@ -21,6 +27,6 @@ createRoot(document.getElementById("root")!).render(
           </Routes>
         </Shell>
       </BrowserRouter>
-    </ThemeProvider>
+    </Theme>
   </StrictMode>,
 );

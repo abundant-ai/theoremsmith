@@ -1,16 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Checkbox from "@mui/material/Checkbox";
-import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { Box, Button, Checkbox, Dialog, Flex, Spinner, Text, TextField } from "@radix-ui/themes";
 
 import { api, type Example, type Run, type ScanOption } from "../api";
 import { monoFont } from "../theme";
@@ -142,163 +131,152 @@ export default function NewRunDialog({
   }
 
   return (
-    <Dialog open={open} onClose={close} fullWidth maxWidth="sm">
-      <DialogTitle sx={{ fontSize: 15, fontWeight: 500 }}>New run</DialogTitle>
-      <DialogContent>
+    <Dialog.Root open={open} onOpenChange={(o) => !o && close()}>
+      <Dialog.Content maxWidth="540px">
+        <Dialog.Title size="4">New run</Dialog.Title>
+
         {phase !== "pick" && (
-          <Stack spacing={2.5} sx={{ pt: 1 }}>
-            <TextField
-              label="Lean 4 repository"
-              placeholder="owner/name"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              disabled={phase === "scanning"}
-              autoFocus
-            />
+          <Flex direction="column" gap="3">
+            <label>
+              <Text size="1" color="gray" as="div" mb="1">
+                Lean 4 repository
+              </Text>
+              <TextField.Root
+                placeholder="owner/name"
+                value={repo}
+                onChange={(e) => setRepo(e.target.value)}
+                disabled={phase === "scanning"}
+                autoFocus
+              />
+            </label>
             {examples.length > 0 && (
-              <Box sx={{ mt: -1.5, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+              <Flex gap="2" wrap="wrap">
                 {examples.map((ex) => (
-                  <Chip
+                  <Button
                     key={ex.repo}
-                    label={ex.repo.split("/")[1]}
-                    title={ex.note ? `${ex.repo} — ${ex.note}` : ex.repo}
-                    size="small"
-                    variant="outlined"
+                    variant="soft"
+                    color="gray"
+                    size="1"
                     onClick={() => setRepo(ex.repo)}
                     disabled={phase === "scanning"}
-                    sx={{ fontFamily: monoFont }}
-                  />
+                    title={ex.note ? `${ex.repo} — ${ex.note}` : ex.repo}
+                    style={{ fontFamily: monoFont }}
+                  >
+                    {ex.repo.split("/")[1]}
+                  </Button>
                 ))}
-              </Box>
+              </Flex>
             )}
-            <TextField
-              label="Commit (optional)"
-              placeholder="defaults to the default branch"
-              value={sha}
-              onChange={(e) => setSha(e.target.value)}
-              disabled={phase === "scanning"}
-            />
-            <Typography variant="caption" color="text.secondary">
+            <label>
+              <Text size="1" color="gray" as="div" mb="1">
+                Commit (optional)
+              </Text>
+              <TextField.Root
+                placeholder="defaults to the default branch"
+                value={sha}
+                onChange={(e) => setSha(e.target.value)}
+                disabled={phase === "scanning"}
+              />
+            </label>
+            <Text size="1" color="gray">
               Scanning clones the repository and reads every theorem in it. For a repository that
               hasn't been scanned before this can take many minutes. The examples above are
               pre-scanned and open instantly.
-            </Typography>
+            </Text>
             {phase === "scanning" && (
-              <Stack spacing={1}>
-                <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-                  <CircularProgress size={14} thickness={6} sx={{ color: "text.primary" }} />
-                  <Typography variant="caption">
+              <Flex direction="column" gap="2">
+                <Flex align="center" gap="2">
+                  <Spinner size="1" />
+                  <Text size="1" color="gray">
                     reading {repo} and choosing theorems — this can take many minutes…
-                  </Typography>
-                </Stack>
+                  </Text>
+                </Flex>
                 {scanLog && (
-                  <Box
+                  <div
                     ref={logBox}
-                    sx={{
-                      maxHeight: 150,
-                      overflowY: "auto",
-                      border: 1,
-                      borderColor: "divider",
-                      p: 1,
-                      fontFamily: monoFont,
-                      fontSize: 11,
-                      lineHeight: 1.6,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      color: "text.secondary",
-                    }}
+                    className="mono-panel mono-panel--muted"
+                    style={{ maxHeight: 150, fontSize: 11 }}
                   >
                     {scanLog}
-                  </Box>
+                  </div>
                 )}
-              </Stack>
+              </Flex>
             )}
             {error && (
-              <Typography variant="caption" color="error">
+              <Text size="1" color="red">
                 {error}
-              </Typography>
+              </Text>
             )}
-          </Stack>
+          </Flex>
         )}
 
         {phase === "pick" && (
-          <Stack spacing={0.5} sx={{ pt: 1 }}>
-            <Typography variant="caption" sx={{ mb: 1 }}>
+          <Flex direction="column" gap="2">
+            <Text size="1" color="gray">
               Theorems in {repo}. Pick the ones to build a task from — their proofs and the helper
               lemmas only they use get cut.
-            </Typography>
-            <Box sx={{ maxHeight: 380, overflowY: "auto", mx: -1 }}>
+            </Text>
+            <Box style={{ maxHeight: 380, overflowY: "auto" }}>
               {options.map((o) => (
-                <Box
+                <Flex
                   key={o.name}
+                  gap="2"
+                  px="2"
+                  py="2"
+                  className="ts-row"
                   onClick={() => toggle(o.name)}
-                  sx={{
-                    display: "flex",
-                    gap: 1,
-                    px: 1,
-                    py: 1,
-                    cursor: "pointer",
-                    borderBottom: 1,
-                    borderColor: "divider",
-                    "&:hover": { bgcolor: "#fafafa" },
-                  }}
+                  style={{ borderBottom: "1px solid var(--gray-a3)", borderRadius: "var(--radius-2)" }}
                 >
                   <Checkbox
                     checked={picked.has(o.name)}
-                    size="small"
-                    sx={{ p: 0, mt: 0.25 }}
-                    disableRipple
+                    mt="1"
+                    style={{ pointerEvents: "none" }}
                   />
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontFamily: monoFont, fontSize: 13 }}>{o.name}</Typography>
-                    <Typography
-                      variant="caption"
-                      sx={{ fontStyle: "italic", color: "text.secondary", display: "block" }}
-                    >
+                  <Box style={{ minWidth: 0 }}>
+                    <Text size="2" style={{ fontFamily: monoFont, display: "block" }}>
+                      {o.name}
+                    </Text>
+                    <Text size="1" color="gray" style={{ fontStyle: "italic", display: "block" }}>
                       {o.gloss}
-                    </Typography>
+                    </Text>
                   </Box>
-                </Box>
+                </Flex>
               ))}
             </Box>
             {error && (
-              <Typography variant="caption" color="error" sx={{ pt: 1 }}>
+              <Text size="1" color="red">
                 {error}
-              </Typography>
+              </Text>
             )}
-          </Stack>
+          </Flex>
         )}
-      </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        {phase === "pick" ? (
-          <>
-            <Button onClick={() => setPhase("form")} color="inherit" disabled={busy}>
-              Back
-            </Button>
-            <Button
-              variant="contained"
-              onClick={() => create([...picked])}
-              disabled={busy || picked.size === 0}
-            >
-              {busy ? "Starting" : `Build task (${picked.size})`}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button onClick={close} color="inherit">
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={scan}
-              disabled={phase === "scanning" || repo.trim().length < 3}
-            >
-              {phase === "scanning" ? "Scanning" : "Scan theorems"}
-            </Button>
-          </>
-        )}
-      </DialogActions>
-    </Dialog>
+        <Flex gap="3" mt="4" justify="end">
+          {phase === "pick" ? (
+            <>
+              <Button variant="soft" color="gray" onClick={() => setPhase("form")} disabled={busy}>
+                Back
+              </Button>
+              <Button onClick={() => create([...picked])} disabled={busy || picked.size === 0} highContrast>
+                {busy ? "Starting" : `Build task (${picked.size})`}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="soft" color="gray" onClick={close}>
+                Cancel
+              </Button>
+              <Button
+                onClick={scan}
+                disabled={phase === "scanning" || repo.trim().length < 3}
+                highContrast
+              >
+                {phase === "scanning" ? "Scanning" : "Scan theorems"}
+              </Button>
+            </>
+          )}
+        </Flex>
+      </Dialog.Content>
+    </Dialog.Root>
   );
 }

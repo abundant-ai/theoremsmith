@@ -1,7 +1,4 @@
-import Box from "@mui/material/Box";
-import CircularProgress from "@mui/material/CircularProgress";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import { Flex, Spinner, Text } from "@radix-ui/themes";
 
 import { STAGES, type StageState } from "../api";
 
@@ -16,9 +13,21 @@ const LABEL: Record<string, string> = {
 };
 
 function Mark({ state }: { state: StageState }) {
-  if (state === "running") return <CircularProgress size={11} thickness={6} sx={{ color: "text.primary" }} />;
-  const color = state === "done" ? "success.main" : state === "failed" ? "error.main" : "divider";
-  return <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: color }} />;
+  if (state === "running") return <Spinner size="1" />;
+  const color =
+    state === "done" ? "var(--green-9)" : state === "failed" ? "var(--red-9)" : "var(--gray-a6)";
+  return (
+    <span
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: color,
+        display: "inline-block",
+        flexShrink: 0,
+      }}
+    />
+  );
 }
 
 export default function Stages({
@@ -34,33 +43,37 @@ export default function Stages({
     state: stages[name] ?? "pending",
   }));
   if (oddish) items.push({ key: "oddish", label: "Run on Oddish", state: oddish });
+
   return (
-    <Stack
-      direction="row"
-      spacing={0}
-      sx={{ border: 1, borderColor: "divider" }}
+    <Flex
+      wrap="wrap"
+      style={{
+        border: "1px solid var(--gray-a4)",
+        borderRadius: "var(--radius-4)",
+        overflow: "hidden",
+        background: "var(--gray-a1)",
+      }}
     >
       {items.map((item, i) => (
-        <Stack
+        <Flex
           key={item.key}
-          direction="row"
-          spacing={1}
-          sx={{
-            flex: 1,
-            alignItems: "center",
-            px: 1.5,
-            py: 1.25,
-            borderLeft: i === 0 ? 0 : 1,
-            borderColor: "divider",
-            opacity: item.state === "pending" ? 0.45 : 1,
+          align="center"
+          gap="2"
+          px="3"
+          py="2"
+          style={{
+            flex: "1 1 120px",
+            minWidth: 0,
+            borderLeft: i === 0 ? "none" : "1px solid var(--gray-a3)",
+            opacity: item.state === "pending" ? 0.5 : 1,
           }}
         >
           <Mark state={item.state} />
-          <Typography variant="caption" noWrap sx={{ color: "text.primary" }}>
+          <Text size="1" truncate>
             {item.label}
-          </Typography>
-        </Stack>
+          </Text>
+        </Flex>
       ))}
-    </Stack>
+    </Flex>
   );
 }

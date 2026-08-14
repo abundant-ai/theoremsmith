@@ -1,0 +1,44 @@
+:root {
+  color-scheme: light;
+  --ts-mono: "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Soft, slightly warm page canvas. */
+.ts-app {
+  min-height: 100vh;
+  background:
+    radial-gradient(120% 60% at 50% -10%, var(--accent-2) 0%, transparent 60%),
+    var(--color-background);
+}
+
+/* Monospace stream panes (build output, model, solver, scan). */
+.mono-panel {
+  font-family: var(--ts-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  border: 1px solid var(--gray-a4);
+  border-radius: var(--radius-4);
+  background: var(--gray-a2);
+  padding: 14px 16px;
+}
+
+.mono-panel--muted {
+  color: var(--gray-11);
+}
+
+/* Clickable rows and cards get a gentle lift. */
+.ts-row {
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.ts-row:hover {
+  background: var(--gray-a3);
+}

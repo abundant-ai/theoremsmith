@@ -1,16 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import Typography from "@mui/material/Typography";
+import { useNavigate } from "react-router-dom";
+import { Button, Callout, Card, Flex, Table, Text } from "@radix-ui/themes";
 
 import { api, type Example, type Run } from "../api";
 import NewRunDialog from "../components/NewRunDialog";
@@ -52,95 +42,93 @@ export default function Runs() {
   }, []);
 
   return (
-    <Stack spacing={3}>
+    <Flex direction="column" gap="4">
       {!configured && (
-        <Alert severity="warning" variant="outlined" sx={{ borderRadius: 1 }}>
-          THEOREMSMITH_API_KEY is not set on the server. Runs cannot start until it is.
-        </Alert>
+        <Callout.Root color="amber" variant="surface">
+          <Callout.Text>
+            THEOREMSMITH_API_KEY is not set on the server. Runs cannot start until it is.
+          </Callout.Text>
+        </Callout.Root>
       )}
 
-      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="caption">
-          {models || " "}
-        </Typography>
-        <Button variant="contained" onClick={() => openWith("")} disabled={!configured}>
+      <Flex align="center" justify="between" gap="3" wrap="wrap">
+        <Text size="1" color="gray">
+          {models || " "}
+        </Text>
+        <Button onClick={() => openWith("")} disabled={!configured} highContrast>
           New run
         </Button>
-      </Stack>
+      </Flex>
 
       {runs === null ? null : runs.length === 0 ? (
-        <Box sx={{ border: 1, borderColor: "divider", p: 6, textAlign: "center" }}>
-          <Typography variant="body2" color="text.secondary">
-            No runs yet. Point it at a Lean 4 repository and watch a proof task get built.
-          </Typography>
-          {examples.length > 0 && (
-            <>
-              <Typography variant="caption" sx={{ display: "block", mt: 2, mb: 1 }}>
-                or start from one of these
-              </Typography>
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ justifyContent: "center", flexWrap: "wrap", gap: 1 }}
-              >
-                {examples.map((ex) => (
-                  <Chip
-                    key={ex.repo}
-                    label={ex.repo}
-                    title={ex.note}
-                    onClick={() => openWith(ex.repo)}
-                    disabled={!configured}
-                    variant="outlined"
-                    sx={{ fontFamily: monoFont }}
-                  />
-                ))}
-              </Stack>
-            </>
-          )}
-        </Box>
+        <Card size="4">
+          <Flex direction="column" align="center" gap="3" py="6">
+            <Text size="2" color="gray">
+              No runs yet. Point it at a Lean 4 repository and watch a proof task get built.
+            </Text>
+            {examples.length > 0 && (
+              <>
+                <Text size="1" color="gray">
+                  or start from one of these
+                </Text>
+                <Flex gap="2" wrap="wrap" justify="center">
+                  {examples.map((ex) => (
+                    <Button
+                      key={ex.repo}
+                      variant="soft"
+                      size="1"
+                      onClick={() => openWith(ex.repo)}
+                      disabled={!configured}
+                      title={ex.note}
+                      style={{ fontFamily: monoFont }}
+                    >
+                      {ex.repo}
+                    </Button>
+                  ))}
+                </Flex>
+              </>
+            )}
+          </Flex>
+        </Card>
       ) : (
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Repository</TableCell>
-              <TableCell>Targets</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right">Updated</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
+        <Table.Root variant="surface" size="1">
+          <Table.Header>
+            <Table.Row>
+              <Table.ColumnHeaderCell>Repository</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Targets</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell justify="end">Updated</Table.ColumnHeaderCell>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
             {runs.map((run) => (
-              <TableRow
+              <Table.Row
                 key={run.id}
-                hover
-                sx={{ cursor: "pointer" }}
+                className="ts-row"
                 onClick={() => navigate(`/runs/${run.id}`)}
               >
-                <TableCell>
-                  <Typography
-                    component={Link}
-                    to={`/runs/${run.id}`}
-                    variant="body2"
-                    sx={{ color: "text.primary", textDecoration: "none" }}
-                  >
+                <Table.RowHeaderCell>
+                  <Text size="2" weight="medium">
                     {run.repo}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="caption">
+                  </Text>
+                </Table.RowHeaderCell>
+                <Table.Cell>
+                  <Text size="1" color="gray">
                     {run.result?.targets?.length ? run.result.targets.join(", ") : "—"}
-                  </Typography>
-                </TableCell>
-                <TableCell>
+                  </Text>
+                </Table.Cell>
+                <Table.Cell>
                   <StatusChip run={run} />
-                </TableCell>
-                <TableCell align="right">
-                  <Typography variant="caption">{since(run.updated)}</Typography>
-                </TableCell>
-              </TableRow>
+                </Table.Cell>
+                <Table.Cell justify="end">
+                  <Text size="1" color="gray">
+                    {since(run.updated)}
+                  </Text>
+                </Table.Cell>
+              </Table.Row>
             ))}
-          </TableBody>
-        </Table>
+          </Table.Body>
+        </Table.Root>
       )}
 
       <NewRunDialog
@@ -150,6 +138,6 @@ export default function Runs() {
         examples={examples}
         initialRepo={initialRepo}
       />
-    </Stack>
+    </Flex>
   );
 }

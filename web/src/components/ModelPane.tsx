@@ -1,8 +1,4 @@
 import { useEffect, useRef } from "react";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
-
-import { monoFont } from "../theme";
 
 // The builder model's trajectory, in the order it happens.
 const ORDER = ["select", "describe"];
@@ -32,36 +28,19 @@ export default function ModelPane({
   }, [JSON.stringify(model).length]);
 
   return (
-    <Box
-      ref={box}
-      sx={{
-        height,
-        overflowY: "auto",
-        border: 1,
-        borderColor: "divider",
-        p: 1.5,
-        fontFamily: monoFont,
-        fontSize: 12.5,
-        lineHeight: 1.7,
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-word",
-      }}
-    >
+    <div ref={box} className="mono-panel" style={{ height }}>
       {parts.length === 0 && (
-        <Typography variant="caption">the builder model has not started yet</Typography>
+        <span style={{ color: "var(--gray-10)" }}>the builder model has not started yet</span>
       )}
       {parts.map(([key, body], i) => (
-        <Box key={key}>
-          <Typography
-            variant="caption"
-            sx={{ display: "block", mt: i > 0 ? 1.5 : 0, mb: 0.5, color: "text.secondary" }}
-          >
+        <div key={key}>
+          <div style={{ marginTop: i > 0 ? 14 : 0, marginBottom: 4, color: "var(--gray-10)" }}>
             — {LABEL[key] ?? key}
             {phase === key ? " …" : ""} —
-          </Typography>
-          <Box sx={{ color: "#111" }}>{body}</Box>
-        </Box>
+          </div>
+          <div style={{ color: "var(--gray-12)" }}>{body}</div>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }
