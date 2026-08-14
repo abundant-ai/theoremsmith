@@ -21,6 +21,7 @@ export type Run = {
     verified?: boolean;
     verify?: string;
     statements?: Record<string, string>;
+    glosses?: Record<string, string>;
     oddish?: OddishRun;
     oddish_error?: string;
   } | null;
@@ -82,8 +83,8 @@ export const api = {
     }),
   scanStreamUrl: (repo: string, sha: string) =>
     `/api/scan/stream?repo=${encodeURIComponent(repo)}&sha=${encodeURIComponent(sha)}`,
-  create: (repo: string, sha: string, goals: string[]) =>
-    call<Run>("/runs", { method: "POST", body: JSON.stringify({ repo, sha, goals }) }),
+  create: (repo: string, sha: string, goals: string[], glosses: Record<string, string> = {}) =>
+    call<Run>("/runs", { method: "POST", body: JSON.stringify({ repo, sha, goals, glosses }) }),
   submit: (id: string) => call<{ submitting: boolean }>(`/runs/${id}/submit`, { method: "POST" }),
   remove: (id: string) => call<{ deleted: string }>(`/runs/${id}`, { method: "DELETE" }),
   taskUrl: (id: string) => `/api/runs/${id}/task`,

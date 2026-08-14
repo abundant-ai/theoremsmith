@@ -48,6 +48,7 @@ class NewRun(BaseModel):
     repo: str = Field(min_length=3, max_length=200)
     sha: str = ""
     goals: list[str] = []
+    glosses: dict[str, str] = {}
 
 
 def _repo(raw: str) -> str:
@@ -180,6 +181,10 @@ def create_run(body: NewRun) -> dict:
         if store.active() >= cfg.max_runs:
             raise HTTPException(429, f"{cfg.max_runs} runs are already going; wait for one to finish")
         run = store.create(repo, body.sha.strip(), goals, False)
+    glosses = {k: v[:400] for k, v in body.glosses.items() if k in goals and v.strip()}
+    if glosses:
+        run["glosses"] = glosses
+        store.write(run)
     pool.submit(pipeline.execute, cfg, store, run["id"])
     return run
 

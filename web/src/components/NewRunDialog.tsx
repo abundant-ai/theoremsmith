@@ -120,7 +120,10 @@ export default function NewRunDialog({
     setBusy(true);
     setError("");
     try {
-      const run = await api.create(repo, sha, goals);
+      const glosses = Object.fromEntries(
+        options.filter((o) => picked.has(o.name)).map((o) => [o.name, o.gloss]),
+      );
+      const run = await api.create(repo, sha, goals, glosses);
       onCreated(run);
       close();
     } catch (e) {

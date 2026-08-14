@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
 import {
-  Box,
   Button,
   Callout,
   Card,
@@ -18,8 +17,6 @@ import {
 
 import { api, type Config, type StageState } from "../api";
 import LogPane from "../components/LogPane";
-import ModelPane from "../components/ModelPane";
-import SolvePane from "../components/SolvePane";
 import Stages from "../components/Stages";
 import StatusChip from "../components/StatusChip";
 import { monoFont } from "../theme";
@@ -27,7 +24,7 @@ import { useRunStream } from "../useRunStream";
 
 export default function RunView() {
   const { id = "" } = useParams();
-  const { run, logs, model, phase, connected } = useRunStream(id);
+  const { run, logs, connected } = useRunStream(id);
   const [cfg, setCfg] = useState<Config | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -38,10 +35,10 @@ export default function RunView() {
     api.config().then(setCfg).catch(() => {});
   }, []);
 
-  // Once the background submit lands the Oddish link, the solver tail takes over.
+  // The background submit lands the Oddish link (or an error) via the poll.
   useEffect(() => {
-    if (run?.result?.oddish) setSubmitting(false);
-  }, [run?.result?.oddish]);
+    if (run?.result?.oddish || run?.result?.oddish_error) setSubmitting(false);
+  }, [run?.result?.oddish, run?.result?.oddish_error]);
 
   if (!run) return <Text size="2" color="gray">loading</Text>;
 
@@ -50,7 +47,8 @@ export default function RunView() {
   const oddishError = result?.oddish_error;
   const canSubmit = run.status === "done" && result?.verified === true;
   const minutes = Math.round((cfg?.oddish_timeout ?? 1800) / 60);
-  const showSolve = !!oddish || submitting;
+  const solveModel = oddish?.model ?? cfg?.oddish_model;
+  const solveAgent = oddish?.agent ?? cfg?.oddish_agent;
   const oddishState: StageState = oddish
     ? "done"
     : busy || submitting
@@ -73,8 +71,7 @@ export default function RunView() {
     }
   }
 
-  const solveModel = oddish?.model ?? cfg?.oddish_model;
-  const solveAgent = oddish?.agent ?? cfg?.oddish_agent;
+  const targets = result?.targets ?? [];
 
   return (
     <Flex direction="column" gap="4">
@@ -126,11 +123,29 @@ export default function RunView() {
 
       <Stages stages={run.stages} oddish={run.status === "done" ? oddishState : undefined} />
 
+      {run.error && (
+        <Callout.Root color="red" variant="surface">
+          <Callout.Text>{run.error}</Callout.Text>
+        </Callout.Root>
+      )}
+
+      {submitting && !oddish && (
+        <Callout.Root color="gray" variant="surface">
+          <Callout.Text>
+            <Flex align="center" gap="2">
+              <Spinner size="1" />
+              Sending to Oddish — packaging the task and starting {solveAgent} / {solveModel}. The
+              public link appears here in a moment.
+            </Flex>
+          </Callout.Text>
+        </Callout.Root>
+      )}
+
       {oddish && (
         <Callout.Root color="green" variant="surface">
           <Callout.Text>
-            Sent to Oddish — {solveAgent} / {solveModel} is solving it now, {minutes}-minute limit.
-            Public link:{" "}
+            Sent to Oddish — {solveAgent} / {solveModel} is attempting it now, {minutes}-minute limit.
+            Watch it live:{" "}
             <Link
               href={oddish.public_url}
               target="_blank"
@@ -149,88 +164,118 @@ export default function RunView() {
         </Callout.Root>
       )}
 
-      {run.error && (
-        <Callout.Root color="red" variant="surface">
-          <Callout.Text>{run.error}</Callout.Text>
-        </Callout.Root>
-      )}
-
-      {result?.targets?.length ? (
+      {targets.length ? (
         <Card size="3">
-          <Text size="1" color="gray" as="p" mb="3">
-            {result.slots} proof{result.slots === 1 ? "" : "s"} removed
-            {result.support ? ` · ${result.support} of them supporting lemmas` : ""}
-            {result.verified === true ? " · the grader gives the original proofs reward 1" : ""}
-            {result.verified === false ? " · the original proofs did not earn reward 1" : ""}
+          <Heading size="3" weight="medium" mb="1">
+            What the solver has to prove
+          </Heading>
+          <Text size="2" color="gray" as="p" mb="4">
+            A proof is a step-by-step argument that a statement is always true. This task took{" "}
+            {result!.slots} proven statement{result!.slots === 1 ? "" : "s"} out of{" "}
+            <Code variant="ghost">{run.repo}</Code>, deleted the proof{result!.slots === 1 ? "" : "s"},
+            and left a blank in each place. To pass, the solver has to fill every blank with a new
+            proof the grader accepts as real.
+            {result!.support
+              ? ` ${result!.support} of these ${
+                  result!.support === 1 ? "is a helper step" : "are helper steps"
+                } the main results lean on.`
+              : ""}
+            {result!.verified === true
+              ? " The original proofs pass this grader, so the task is known to be solvable."
+              : ""}
           </Text>
-          <Flex direction="column" gap="3" style={{ maxHeight: 300, overflow: "auto" }}>
-            {result.targets.map((t) => (
-              <div key={t}>
-                <Text size="2" style={{ fontFamily: monoFont, display: "block" }}>
-                  {t}
-                </Text>
-                {result.statements?.[t] && (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      maxHeight: 96,
-                      overflow: "auto",
-                      fontFamily: monoFont,
-                      fontSize: 11.5,
-                      lineHeight: 1.5,
-                      color: "var(--gray-10)",
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {result.statements[t]}
-                  </div>
-                )}
-              </div>
-            ))}
+          <Flex direction="column" gap="1" style={{ maxHeight: 460, overflow: "auto" }}>
+            {targets.map((t, i) => {
+              const gloss = result?.glosses?.[t];
+              const statement = result?.statements?.[t];
+              return (
+                <div
+                  key={t}
+                  style={{
+                    padding: "14px 4px",
+                    borderTop: i === 0 ? "none" : "1px solid var(--gray-a3)",
+                  }}
+                >
+                  <Flex align="baseline" gap="2">
+                    <Text size="1" color="gray" style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {i + 1}
+                    </Text>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      {gloss ? (
+                        <>
+                          <Text size="3" as="p" style={{ lineHeight: 1.5 }}>
+                            {gloss}
+                          </Text>
+                          <Text
+                            size="1"
+                            color="gray"
+                            as="p"
+                            mt="1"
+                            style={{ fontFamily: monoFont }}
+                          >
+                            {t}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text size="3" as="p" style={{ fontFamily: monoFont }}>
+                          {t}
+                        </Text>
+                      )}
+                      {statement && (
+                        <details style={{ marginTop: 8 }}>
+                          <summary
+                            style={{
+                              cursor: "pointer",
+                              listStyle: "none",
+                              fontSize: 12,
+                              color: "var(--gray-10)",
+                              width: "fit-content",
+                            }}
+                          >
+                            the exact statement
+                          </summary>
+                          <div
+                            style={{
+                              marginTop: 6,
+                              maxHeight: 140,
+                              overflow: "auto",
+                              fontFamily: monoFont,
+                              fontSize: 11.5,
+                              lineHeight: 1.5,
+                              color: "var(--gray-11)",
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {statement}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </Flex>
+                </div>
+              );
+            })}
           </Flex>
         </Card>
       ) : null}
 
-      <Flex direction={{ initial: "column", md: "row" }} gap="4">
-        <Box style={{ flex: 1, minWidth: 0 }}>
-          <Text size="1" color="gray" as="div" mb="2">
-            {showSolve
-              ? `live solve · ${solveAgent} / ${solveModel}`
-              : `builder model · ${cfg?.create_model ?? ""}`}
-          </Text>
-          {oddish ? (
-            <SolvePane runId={id} height={360} />
-          ) : submitting ? (
-            <Flex
-              align="center"
-              justify="center"
-              gap="2"
-              className="mono-panel"
-              style={{ height: 360, color: "var(--gray-10)" }}
-            >
-              <Spinner size="2" />
-              <span>loading — setting up the solver on Oddish…</span>
-            </Flex>
-          ) : (
-            <ModelPane model={model} phase={phase} height={360} />
-          )}
-        </Box>
-        <Box style={{ flex: 1, minWidth: 0 }}>
-          <Text size="1" color="gray" as="div" mb="2">
-            build output {connected ? "" : "(stream closed)"}
-          </Text>
-          <LogPane
-            logs={logs}
-            height={360}
-            empty={
-              run.status === "queued" || run.status === "running"
-                ? "waiting for output"
-                : "this run has finished; its output is not kept after a restart"
-            }
-          />
-        </Box>
-      </Flex>
+      <div>
+        <Text size="1" color="gray" as="div" mb="2">
+          {run.status === "queued" || run.status === "running"
+            ? `building the task${connected ? "" : " (stream closed)"}`
+            : "build output"}
+        </Text>
+        <LogPane
+          logs={logs}
+          height={targets.length ? 220 : 420}
+          empty={
+            run.status === "queued" || run.status === "running"
+              ? "waiting for output"
+              : "this run has finished; its output is not kept after a restart"
+          }
+        />
+      </div>
 
       <Separator size="4" />
       <Text size="1" color="gray">

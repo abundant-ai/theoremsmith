@@ -6,7 +6,8 @@ every helper lemma that existed only to support it. What comes out is a self-con
 repository whose proofs are now `sorry`, one empty answer file per missing proof, and a grader that
 decides whether a submitted proof is real.
 
-You watch the whole thing happen in the browser while it runs, model output included.
+You watch the build happen in the browser while it runs, and the finished run lays out — in plain
+language — each proof the solver has to fill in.
 
 A run against `leanprover-community/batteries` takes about two minutes on a warm box and produces a
 task around three theorems and the lemma they shared.

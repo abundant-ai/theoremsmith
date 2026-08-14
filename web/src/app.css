@@ -16,7 +16,7 @@ body {
     var(--color-background);
 }
 
-/* Monospace stream panes (build output, model, solver, scan). */
+/* Monospace stream panes (build output, scan). */
 .mono-panel {
   font-family: var(--ts-mono);
   font-size: 12px;

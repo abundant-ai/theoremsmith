@@ -40,6 +40,16 @@ def test_a_github_repo_is_accepted_in_any_of_its_spellings(client, repo):
     assert c.post("/api/runs", json={"repo": repo}).json()["repo"] == "owner/name"
 
 
+def test_the_glosses_of_the_picked_theorems_are_kept_for_the_page(client):
+    c, module = client
+    created = c.post("/api/runs", json={
+        "repo": "owner/name", "goals": ["A.thm", "B.thm"],
+        "glosses": {"A.thm": "adds zero", "B.thm": "commutes", "C.thm": "not a goal"},
+    }).json()
+    run = module.store.read(created["id"])
+    assert run["glosses"] == {"A.thm": "adds zero", "B.thm": "commutes"}
+
+
 @pytest.mark.parametrize("repo", [
     "file:///etc/passwd",
     "https://169.254.169.254/latest/meta-data",

@@ -147,7 +147,8 @@ def _run(cfg: Config, store: Store, run: dict, work: Path, source: Path) -> None
                            answers=cut["answers"], modules=modules,
                            repo=run["repo"], sha=run["sha"])
     run["result"] = {**meta, "slots": len(cut["slots"]),
-                     "support": len(cut["slots"]) - len(goals), "statements": statements}
+                     "support": len(cut["slots"]) - len(goals), "statements": statements,
+                     "glosses": run.get("glosses") or {}}
     store.write(run)
     _stage(store, run, "emit", "done")
 
