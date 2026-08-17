@@ -166,16 +166,20 @@ def test_a_run_with_goals_given_up_front_never_asks_the_model_to_choose(cfg, fak
     assert not any("Candidate" in u for u in asked)
 
 
-def test_events_carry_model_deltas_and_stages(cfg, fakes):
+def test_the_builder_trajectory_is_folded_into_the_build_log(cfg, fakes):
     store = Store(cfg.data_dir)
     run = store.create("demo/demo", "", [], False)
     pipeline.execute(cfg, store, run["id"])
 
     log = events.history(run["id"])
     kinds = {e["kind"] for e in log}
-    assert {"stage", "status", "model", "delta", "log", "end"} <= kinds
-    text = "".join(e["text"] for e in log if e["kind"] == "delta" and e.get("phase") == "select")
-    assert '"targets"' in text
+    assert {"stage", "status", "log", "end"} <= kinds
+    # the builder model's output is streamed into the build log at level "model",
+    # not as separate model/delta events.
+    assert not ({"model", "delta"} & kinds)
+    model_text = "".join(e["text"] for e in log if e["kind"] == "log" and e.get("level") == "model")
+    assert "builder model" in model_text
+    assert '"targets"' in model_text
     assert [e["seq"] for e in log] == sorted(e["seq"] for e in log)
 
 

@@ -64,13 +64,12 @@ export type OddishRun = {
 export type Event = {
   seq: number;
   t: number;
-  kind: "log" | "stage" | "status" | "model" | "delta" | "end";
+  kind: "log" | "stage" | "status" | "end";
   text?: string;
   level?: string;
   stage?: string;
-  state?: StageState | "start" | "end";
+  state?: StageState;
   status?: string;
-  phase?: string;
   error?: string;
 };
 

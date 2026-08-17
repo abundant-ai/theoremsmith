@@ -2,7 +2,11 @@ import { useEffect, useRef } from "react";
 
 import type { Event } from "../api";
 
-const COLOR: Record<string, string> = { error: "var(--red-11)", warn: "var(--amber-11)" };
+const COLOR: Record<string, string> = {
+  error: "var(--red-11)",
+  warn: "var(--amber-11)",
+  model: "var(--iris-11)",
+};
 
 export default function LogPane({
   logs,

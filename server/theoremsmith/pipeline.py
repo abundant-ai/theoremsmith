@@ -59,6 +59,23 @@ def _log(run_id: str, line: str, level: str = "info") -> None:
         events.emit(run_id, "log", text=line[:4000], level=level)
 
 
+def _model_log(rid: str, label: str):
+    _log(rid, f"— builder model · {label} —", "model")
+    buf = [""]
+
+    def on_piece(piece: str) -> None:
+        buf[0] += piece
+        while "\n" in buf[0]:
+            line, _, buf[0] = buf[0].partition("\n")
+            _log(rid, line, "model")
+
+    def flush() -> None:
+        _log(rid, buf[0], "model")
+        buf[0] = ""
+
+    return on_piece, flush
+
+
 def execute(cfg: Config, store: Store, run_id: str) -> None:
     run = store.read(run_id)
     if not run:
@@ -186,12 +203,11 @@ def _select(cfg: Config, rid: str, repo: str, graph: dagcut.Graph) -> list[str]:
             "theorems, and none has a proof long enough or with enough in-repository dependencies. "
             "Try a repository that proves things, or name the theorems yourself when starting a run")
     listing = "\n".join(f"{c['name']}  deps={c['deps']}  lines={c['lines']}" for c in cands)
-    events.emit(rid, "model", phase="select", state="start")
+    on_piece, flush = _model_log(rid, "choosing theorems")
     raw = llm.chat(
         cfg, SELECT_SYSTEM,
-        SELECT_USER.format(repo=repo, candidates=listing, limit=3),
-        lambda piece: events.emit(rid, "delta", phase="select", text=piece))
-    events.emit(rid, "model", phase="select", state="end")
+        SELECT_USER.format(repo=repo, candidates=listing, limit=3), on_piece)
+    flush()
     asked = [str(t) for t in llm.json_block(raw).get("targets", []) if t]
     picked = [t for t in asked if t in graph.nodes]
     for missing in [t for t in asked if t not in graph.nodes]:
@@ -205,15 +221,14 @@ def _select(cfg: Config, rid: str, repo: str, graph: dagcut.Graph) -> list[str]:
 
 def _prose(cfg: Config, rid: str, repo: str, goals: list[str], statements: dict[str, str]) -> str:
     body = "\n\n".join(f"{g}:\n{statements.get(g, '(statement unavailable)')[:1200]}" for g in goals)
-    events.emit(rid, "model", phase="describe", state="start")
+    on_piece, flush = _model_log(rid, "writing the task description")
     try:
         text = llm.chat(cfg, PROSE_SYSTEM, PROSE_USER.format(repo=repo, statements=body),
-                        lambda piece: events.emit(rid, "delta", phase="describe", text=piece),
-                        max_tokens=700)
+                        on_piece, max_tokens=700)
     except llm.LlmError as exc:
         events.emit(rid, "log", text=f"description unavailable ({exc})", level="warn")
         text = f"Proof targets taken from {repo}."
-    events.emit(rid, "model", phase="describe", state="end")
+    flush()
     return text.strip()
 
 
